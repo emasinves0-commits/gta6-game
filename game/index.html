@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solmar Bay - A Tide of Trouble</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #10202c; overflow: hidden; font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif; color: #fff; user-select: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; text-shadow: 0 2px 3px rgba(0,0,0,0.8); }
+  #hud.on { display: block; }
+  .panel { position: absolute; background: rgba(12, 18, 30, 0.62); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 6px 10px; }
+  #status { left: 14px; top: 12px; width: 230px; }
+  #healthTrack { height: 12px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+  #healthFill { height: 100%; width: 100%; background: linear-gradient(#ff6a5a, #d6342a); border-radius: 6px; }
+  #money { font-size: 24px; font-weight: bold; color: #7be08e; margin-top: 4px; letter-spacing: 1px; }
+  #stars { font-size: 22px; letter-spacing: 3px; margin-top: 2px; height: 26px; }
+  #stars .star { color: rgba(255,255,255,0.25); }
+  #stars .star.lit { color: #ffd23f; }
+  #stars.hot .star.lit { animation: blink 0.45s infinite alternate; }
+  #stars.cool .star.lit { animation: blink 1.1s infinite alternate; }
+  @keyframes blink { from { opacity: 1; } to { opacity: 0.25; } }
+  #ammo { font-size: 14px; color: #ffe9a8; margin-top: 2px; }
+  #clock { right: 14px; top: 12px; font-size: 20px; font-weight: bold; }
+  #objective { left: 50%; top: 12px; transform: translateX(-50%); min-width: 300px; max-width: 520px; text-align: center; }
+  #objTitle { font-size: 12px; letter-spacing: 3px; color: #ffd23f; text-transform: uppercase; }
+  #objText { font-size: 17px; }
+  #objDist { font-size: 12px; color: #bcd; }
+  #minimapWrap { left: 14px; bottom: 14px; padding: 4px; border-radius: 50%; width: 170px; height: 170px; }
+  #minimap { width: 170px; height: 170px; border-radius: 50%; display: block; }
+  #speed { right: 14px; bottom: 14px; text-align: right; font-size: 30px; font-weight: bold; }
+  #speed small { display: block; font-size: 12px; letter-spacing: 2px; color: #bcd; font-weight: normal; }
+  #hint { left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; color: #dde; background: rgba(12,18,30,0.5); white-space: nowrap; }
+  #banner { left: 50%; top: 28%; transform: translateX(-50%); text-align: center; display: none; background: none; border: 0; }
+  #banner h1 { margin: 0; font-size: 54px; letter-spacing: 6px; }
+  #banner p { margin: 4px 0 0; font-size: 22px; }
+  #banner.pass h1 { color: #ffd23f; } #banner.fail h1 { color: #ff5a4a; } #banner.start h1 { color: #fff; font-size: 40px; }
+  #dialog { left: 50%; bottom: 52px; transform: translateX(-50%); max-width: 640px; display: none; font-size: 16px; line-height: 1.35; }
+  #dialog b { color: #ffd23f; }
+  #notice { left: 50%; top: 96px; transform: translateX(-50%); font-size: 18px; color: #fff; display: none; background: none; border: 0; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; z-index: 5; }
+  .screen.on { display: flex; }
+  #title { background: linear-gradient(rgba(10,20,40,0.35), rgba(10,20,40,0.78)); }
+  #title h1 { font-size: 92px; margin: 0; letter-spacing: 10px; color: #ffe6a6; text-shadow: 0 4px 0 #d9622b, 0 8px 18px rgba(0,0,0,0.7); }
+  #title h2 { font-size: 24px; margin: 4px 0 28px; letter-spacing: 8px; font-weight: normal; color: #bfe9f3; }
+  button.menu { display: block; width: 260px; margin: 7px auto; padding: 12px 0; font-size: 20px; font-family: inherit; letter-spacing: 3px; color: #fff; background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.55); border-radius: 8px; cursor: pointer; }
+  button.menu:hover { background: #e2662f; border-color: #ffd7a0; }
+  #pause, #help { background: rgba(8,12,24,0.82); }
+  #help .box { text-align: left; background: rgba(20,28,46,0.9); border: 1px solid rgba(255,255,255,0.25); padding: 18px 30px; border-radius: 10px; font-size: 16px; line-height: 1.7; max-width: 640px; }
+  #help kbd { background: #fff; color: #112; padding: 1px 7px; border-radius: 4px; font-size: 13px; font-weight: bold; }
+  #busted h1, #wasted h1 { font-size: 110px; margin: 0; letter-spacing: 12px; }
+  #busted { background: rgba(20,40,120,0.45); } #busted h1 { color: #9ab8ff; }
+  #wasted { background: rgba(60,0,0,0.5); } #wasted h1 { color: #ff5a4a; }
+  .sub { font-size: 20px; color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="status" class="panel">
+    <div id="healthTrack"><div id="healthFill"></div></div>
+    <div id="money">$0</div>
+    <div id="stars"></div>
+    <div id="ammo"></div>
+  </div>
+  <div id="clock" class="panel">09:30</div>
+  <div id="objective" class="panel"><div id="objTitle"></div><div id="objText"></div><div id="objDist"></div></div>
+  <div id="minimapWrap" class="panel"><canvas id="minimap" width="170" height="170"></canvas></div>
+  <div id="speed" class="panel"><span id="speedValue">0</span> km/h<small id="carName"></small></div>
+  <div id="hint" class="panel">WASD move/drive &middot; Mouse aim &middot; Click shoot &middot; R reload &middot; Shift sprint &middot; E car/punch &middot; Space handbrake &middot; M mute &middot; Esc pause</div>
+  <div id="banner" class="panel"><h1></h1><p></p></div>
+  <div id="dialog" class="panel"></div>
+  <div id="notice" class="panel"></div>
+</div>
+<div id="title" class="screen on">
+  <h1>SOLMAR BAY</h1>
+  <h2>A TIDE OF TROUBLE</h2>
+  <button class="menu" id="btnPlay">PLAY</button>
+  <button class="menu" id="btnContinue" style="display:none">CONTINUE</button>
+  <button class="menu" id="btnHelp">HOW TO PLAY</button>
+</div>
+<div id="pause" class="screen">
+  <h1 style="font-size:64px;letter-spacing:8px;margin:0 0 20px">PAUSED</h1>
+  <button class="menu" id="btnResume">RESUME</button>
+  <button class="menu" id="btnSave">SAVE GAME</button>
+  <button class="menu" id="btnPauseHelp">CONTROLS</button>
+  <button class="menu" id="btnQuit">QUIT TO TITLE</button>
+  <p class="sub" id="saveNote"></p>
+</div>
+<div id="help" class="screen">
+  <div class="box">
+    <h2 style="margin:0 0 8px;letter-spacing:4px">CONTROLS</h2>
+    <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move on foot / accelerate, steer and brake in a car</div>
+    <div><kbd>Mouse</kbd> aim &nbsp; <kbd>Click</kbd> shoot the pistol &nbsp; <kbd>R</kbd> reload</div>
+    <div><kbd>Shift</kbd> sprint &nbsp; <kbd>F</kbd> or <kbd>E</kbd> punch</div>
+    <div><kbd>E</kbd> enter or exit a nearby car (stealing one raises your wanted level)</div>
+    <div><kbd>Space</kbd> handbrake / drift &nbsp; <kbd>H</kbd> horn</div>
+    <div><kbd>Esc</kbd> / <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</div>
+    <p style="margin:10px 0 0">Follow the green marker to start a mission, the yellow marker during one. Crimes raise your stars: break line of sight with the police and wait out the timer to escape. Busted or wasted costs you cash.</p>
+    <button class="menu" id="btnHelpBack" style="margin-top:14px">BACK</button>
+  </div>
+</div>
+<div id="busted" class="screen"><h1>BUSTED</h1><p class="sub" id="bustedNote">The police took you in.</p></div>
+<div id="wasted" class="screen"><h1>WASTED</h1><p class="sub" id="wastedNote">Patched up at Solmar General.</p></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
