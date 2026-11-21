@@ -25,14 +25,18 @@ export function snapToRoad(car) {
   }
 }
 
+// Pick the next heading at a junction. Directions are indices into DIRS; a U-turn (opposite of car.dir) is never
+// offered unless the car is at a dead end, and the grid edge is respected via inGrid().
 function chooseDirection(car, goal) {
   const options = [];
+  const reverse = (car.dir + 2) % 4;
   for (let d = 0; d < 4; d++) {
-    if (d === (car.dir + 2) % 4) continue;
+    if (d === reverse) continue;
     const ti = car.nodeI + DIRS[d][0], tj = car.nodeJ + DIRS[d][1];
     if (inGrid(ti, tj)) options.push(d);
   }
-  if (!options.length) return (car.dir + 2) % 4;
+  if (!options.length) return reverse; // dead end: the only way out is back
+  // Chasers head for the goal 88% of the time; the 12% random pick keeps them from looking robotic.
   if (goal && Math.random() > 0.12) {
     let best = options[0], bd = Infinity;
     for (const d of options) {
@@ -42,6 +46,7 @@ function chooseDirection(car, goal) {
     }
     return best;
   }
+  // Wander: going straight is weighted 4:1 over turning, so traffic mostly keeps to its street.
   const weighted = [];
   for (const d of options) for (let k = 0; k < (d === car.dir ? 4 : 1); k++) weighted.push(d);
   return weighted[Math.floor(Math.random() * weighted.length)];

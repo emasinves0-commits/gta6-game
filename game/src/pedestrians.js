@@ -29,6 +29,7 @@ export function spawnPedestrians(game, minR = 0, maxR = 900, limit = PED_COUNT) 
 }
 
 // Make nearby pedestrians run away from a point (gunshot, car, punch).
+// Make every pedestrian within `radius` of (x,y) run away (gunshots, crashes).
 export function scarePeds(game, x, y, radius) {
   for (const p of game.peds) {
     if (p.dead) continue;

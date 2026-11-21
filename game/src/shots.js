@@ -1,7 +1,7 @@
 // Screenshot staging (?shot=drive|foot|chase|mission, ?seed=N) and the demo autopilot that keeps scenes alive.
 import { nodePosition, blockAt } from './city.js';
 import { createCar } from './vehicles.js';
-import { driveAlongRoads, snapToRoad, spawnTrafficCar } from './traffic.js';
+import { driveAlongRoads, findRoadSpot, snapToRoad, spawnTrafficCar } from './traffic.js';
 import { setWanted } from './police.js';
 import { forceStartMission, getObjective } from './missions.js';
 import { stepGame } from './world.js';
@@ -29,6 +29,27 @@ function refreshTrafficAround(game) {
   for (let i = 0; i < 20; i++) spawnTrafficCar(game, game.player.x, game.player.y, 160, 700);
 }
 
+// Idle police cruisers placed on roads near the player (no wanted level) so scenes show the force; they roll along like traffic.
+function patrol(game, count, minD, maxD) {
+  for (let k = 0; k < count; k++) {
+    const spot = findRoadSpot(game, game.player.x, game.player.y, minD, maxD);
+    if (!spot) continue;
+    const c = createCar('police', spot.x, spot.y, spot.angle, { driver: 'police' });
+    c.nodeI = spot.i; c.nodeJ = spot.j; c.dir = spot.dir;
+    c.vx = Math.cos(spot.angle) * 120; c.vy = Math.sin(spot.angle) * 120;
+    game.cars.push(c);
+  }
+}
+
+// A parked two-car roadblock across the road ahead (flagged roadblock so the dispatch panel lists it).
+function policeRoadblock(game, x, y) {
+  for (const k of [-1, 1]) {
+    const c = createCar('police', x, y + k * 20, Math.PI / 2, { parked: true });
+    c.keep = true; c.roadblock = true; c.sirenOn = true;
+    game.cars.push(c);
+  }
+}
+
 // Drives the player's car along roads. With a goal it heads there and halts `stopShort` units before arriving.
 function cruiseAutopilot(cruise, goalFn, stopShort = 0) {
   return (game, car, dt) => {
@@ -48,21 +69,23 @@ export function stageShot(game, name) {
   if (name === 'foot') {
     const plaza = blockAt(game.city, 2, 3);
     game.player.x = plaza.x + 50; game.player.y = plaza.y + 60; game.player.angle = 0;
+    game.money = 4250;
     game.camera.x = game.player.x; game.camera.y = game.player.y; game.camera.zoom = 1.5;
     game.noCrime = true;
     game.autopilot = null;
     game.demoMode = 'foot';
     game.peds.length = 0;
-    spawnPedestrians(game, 20, 380, 30);
+    spawnPedestrians(game, 26, 380, 30);
     refreshTrafficAround(game);
   } else if (name === 'chase') {
     const s = lane(4, 5, 90, 14);
     const car = putPlayerInCar(game, 'sports', s.x, s.y, 0, '#f0a21a');
     game.autopilot = cruiseAutopilot(260);
     refreshTrafficAround(game);
-    setWanted(game, 3, false);
-    for (let k = 0; k < 3; k++) {
-      const c = createCar('police', s.x - 150 - k * 85, s.y + (k === 1 ? -28 : 0), 0, { driver: 'police' });
+    game.shotZoom = 1.4; game.money = 4250;
+    setWanted(game, 4, false);
+    for (let k = 0; k < 4; k++) {
+      const c = createCar('police', s.x - 120 - k * 70, s.y + (k % 2 ? -28 : 0), 0, { driver: 'police' });
       c.vx = 220; c.sirenOn = true; snapToRoad(c);
       game.cars.push(c);
     }
@@ -73,17 +96,24 @@ export function stageShot(game, name) {
     forceStartMission(game, 1);
     game.autopilot = cruiseAutopilot(135, () => getObjective(game).target, 110);
     refreshTrafficAround(game);
+    game.shotZoom = 1.3; game.money = 4250;
   } else {
     const s = lane(3, 4, 120, 14);
     putPlayerInCar(game, 'taxi', s.x, s.y, 0, null);
     game.autopilot = cruiseAutopilot(230);
     game.noCrime = true;
+    game.shotZoom = 1.3; game.money = 4250;
     refreshTrafficAround(game);
-    spawnPedestrians(game, 20, 500, 36);
+    for (let k = 0; k < 6; k++) spawnTrafficCar(game, game.player.x, game.player.y, 120, 420);
+    spawnPedestrians(game, 30, 500, 36);
   }
   // Pre-roll a couple of seconds so traffic and police are already in motion.
   const idle = createIdleInput();
   for (let i = 0; i < 70; i++) stepGame(game, 1 / 30, demoInput(game, idle));
+  // Chase scene: the roadblock goes in after the pre-roll so it sits ahead of the player, not under them.
+  if (name === 'drive') patrol(game, 2, 160, 380);
+  if (name === 'mission') patrol(game, 2, 200, 420);
+  if (name === 'chase') policeRoadblock(game, game.player.x + 330, game.player.y);
   game.camera.x = game.player.x + game.camera.lookX; game.camera.y = game.player.y + game.camera.lookY;
   return name;
 }

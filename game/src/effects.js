@@ -1,6 +1,6 @@
 // Visual effects state: particles (smoke, sparks, flashes), skid marks and camera shake.
 
-const MAX_PARTICLES = 420;
+const MAX_PARTICLES = 420; // oldest particle is dropped beyond this cap so long chases stay cheap
 const MAX_SKIDS = 900;
 
 export function emitParticle(game, x, y, vx, vy, life, size, color, grow = 0, glow = false) {

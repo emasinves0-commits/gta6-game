@@ -1,6 +1,7 @@
 // WebAudio synthesiser: engine hum, police siren, gunshots, pickups, UI clicks, jingles and a bass-line music loop.
 // Nothing is loaded from disk; every sound is generated from oscillators and noise. Starts on a user gesture.
 
+// ctx stays null until the first user gesture (browser autoplay rules), so every helper below guards on it.
 let ctx = null, master = null, noiseBuffer = null, muted = false;
 let engine = null, siren = null, sirenFlip = 0;
 let musicOn = false, musicStep = 0, musicNext = 0, musicTimer = null;

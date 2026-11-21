@@ -27,6 +27,7 @@ export function createCar(type, x, y, angle, opts = {}) {
 export function carSpeed(car) { return Math.hypot(car.vx, car.vy); }
 export function carForwardSpeed(car) { return car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle); }
 
+// Three overlapping circles along the car's axis approximate its rectangular hull for collision tests.
 export function carCircles(car) {
   const c = Math.cos(car.angle), s = Math.sin(car.angle), o = car.spec.len / 3, r = car.spec.wid / 2 + 1;
   return [[car.x - c * o, car.y - s * o, r], [car.x, car.y, r], [car.x + c * o, car.y + s * o, r]];
@@ -39,7 +40,7 @@ export function damageCar(game, car, amount) {
 }
 
 function wreckCar(game, car) {
-  car.wrecked = true; car.hp = 0; car.burn = 22; car.throttle = 0; car.steer = 0; car.driver === 'player' && ejectPlayer(game, car);
+  car.wrecked = true; car.hp = 0; car.burn = 22; car.throttle = 0; car.steer = 0; if (car.driver === 'player') ejectPlayer(game, car); // must run before the driver reference is cleared
   car.driver = null;
   emitExplosion(game, car.x, car.y);
   play('explosion');

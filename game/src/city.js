@@ -59,6 +59,23 @@ export function createCity(seed) {
 
 export function blockAt(city, c, r) { return city.blocks[r * COLS + c]; }
 
+// Named districts: each is anchored on a block (col,row); the label is the nearest anchor, with the beach strip as The Strand.
+const DISTRICTS = [
+  { name: 'Old Cannery', c: 1, r: 1 }, { name: 'Solmar General', c: 2, r: 1 }, { name: 'Dock 9', c: 7, r: 0 },
+  { name: 'Marina Row', c: 7, r: 5 }, { name: 'Central Plaza', c: 2, r: 3 }, { name: 'City Park', c: 4, r: 4 },
+  { name: 'Precinct Hill', c: 6, r: 2 }, { name: 'Palm Avenue', c: 1, r: 5 }, { name: 'Harbor Heights', c: 4, r: 1 },
+  { name: 'Coral Flats', c: 4, r: 6 },
+];
+export function districtAt(x, y) {
+  if (y > ROADS_H) return 'The Strand';
+  let best = DISTRICTS[0].name, bestD = Infinity;
+  for (const d of DISTRICTS) {
+    const dx = x - (d.c * PITCH + ROAD_W + BLOCK / 2), dy = y - (d.r * PITCH + ROAD_W + BLOCK / 2), dd = dx * dx + dy * dy;
+    if (dd < bestD) { bestD = dd; best = d.name; }
+  }
+  return best;
+}
+
 function addBuilding(city, x, y, w, h, palette, height, rng) {
   const b = { x, y, w, h, wall: palette[0], roof: palette[1], height, decor: [] };
   const n = rng.int(0, 3);

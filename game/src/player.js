@@ -64,6 +64,7 @@ function driveControls(game, car, dt, input) {
   if (input.wasPressed('KeyH')) play('horn');
 }
 
+// Heal up to PLAYER_MAX_HP; health pickups call this with +35.
 export function healPlayer(game, amount) {
   game.player.hp = Math.min(PLAYER_MAX_HP, game.player.hp + amount);
 }

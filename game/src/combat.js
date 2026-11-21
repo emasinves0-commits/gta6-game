@@ -7,6 +7,7 @@ import { hurtCop, reportCrime } from './police.js';
 import { damageCar } from './vehicles.js';
 import { play } from './audio.js';
 
+// Bullets are plain {x,y,vx,vy,owner,damage} records stepped in updateBullets; owner is 'player' or 'cop'.
 export function spawnBullet(game, owner, x, y, angle, damage, speed = BULLET_SPEED) {
   game.bullets.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.75, owner, damage });
 }

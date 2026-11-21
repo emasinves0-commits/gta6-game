@@ -90,6 +90,7 @@ export function forceStartMission(game, index) {
   startMission(game);
 }
 
+// Show a speech box under the HUD for ~6 seconds; hud.js renders game.dialog.
 export function say(game, speaker, text) {
   game.dialog = { speaker, text, t: 6 };
 }

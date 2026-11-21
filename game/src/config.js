@@ -31,7 +31,7 @@ export const MELEE_DAMAGE = 26;
 export const MELEE_RANGE = 34;
 
 // Traffic, peds, police
-export const TRAFFIC_COUNT = 22;
+export const TRAFFIC_COUNT = 22; // ambient AI cars alive at once (screenshot scenes add more around the player)
 export const PARKED_COUNT = 34;
 export const PED_COUNT = 46;
 export const SPAWN_RING_MIN = 620;

@@ -36,6 +36,7 @@ function setState(state) {
   setHudVisible(hud, state !== 'title' && state !== 'help' || (state === 'help' && helpReturn === 'paused'));
 }
 
+// The title screen shows the drive scene running behind the menu (same staging as ?shot=drive).
 function startDemoBackdrop() {
   stageShot(game, 'drive');
   game.state = 'title';

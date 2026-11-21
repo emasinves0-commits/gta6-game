@@ -103,7 +103,8 @@ function updateCamera(game, dt) {
   const tx = p.x + cam.lookX, ty = p.y + cam.lookY;
   const k = Math.min(1, dt * 6);
   cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
-  const zoomTarget = car ? 1 - Math.min(0.22, carSpeed(car) / 2200) : 1.5;
+  // game.shotZoom is only set by ?shot= staging so screenshots read closer; normal play is unchanged.
+  const zoomTarget = game.shotZoom || (car ? 1 - Math.min(0.22, carSpeed(car) / 2200) : 1.5);
   cam.zoom = (cam.zoom || 1) + (zoomTarget - (cam.zoom || 1)) * Math.min(1, dt * 1.5);
 }
 

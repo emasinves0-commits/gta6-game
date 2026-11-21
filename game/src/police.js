@@ -71,6 +71,9 @@ export function hurtCop(game, cop, amount, byPlayer) {
   }
 }
 
+// Active police cars plus roadblock cruisers: the units the HUD dispatch panel lists.
+export function dispatchUnits(game) { return game.cars.filter((c) => (c.driver === 'police' && !c.wrecked) || (c.roadblock && !c.wrecked)); }
+
 function policeCars(game) { return game.cars.filter((c) => c.driver === 'police' && !c.wrecked); }
 
 function spawnPoliceCar(game) {

@@ -18,7 +18,7 @@ export function loadSave() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data || data.version !== 1) return null;
+    if (!data || data.version !== 1 || !Number.isFinite(data.x) || !Number.isFinite(data.y)) return null; // reject corrupt saves
     return data;
   } catch (e) { return null; }
 }

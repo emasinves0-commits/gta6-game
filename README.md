@@ -22,6 +22,7 @@ all sound (engines, sirens, gunshots, music) is synthesized with WebAudio. No li
 - Busted and wasted respawns that cost you cash
 - Pistol with ammo and reloading, melee, health and ammo pickups
 - A four-mission story with waypoint arrow, minimap markers, objective tracker and mission banners
+- A dense GTA-style HUD driven by real game state: SBPD dispatch panel (named units SBPD-01.., distance in metres, PURSUIT / RAMMING / ROADBLOCK, CODE n), big gold wanted stars, fists/pistol slots with ammo, district label (Marina Row, City Park, The Strand...), speed + car name and a SOLMAR FM 98.4 radio line that changes track each in-game hour
 - Minimap, HUD, start screen, pause menu, help screen, localStorage save and Continue, M to mute
 
 ## How to play
@@ -32,7 +33,7 @@ node serve.ts
 
 Then open http://localhost:8080 in desktop Chrome and press Play. Any static file server pointed at `game/` works too.
 
-Screenshot staging URLs: `?shot=drive`, `?shot=foot`, `?shot=chase`, `?shot=mission` (add `&seed=N` for another city seed).
+Screenshot staging URLs: `?shot=chase` (4 stars, police pursuit and a roadblock), `?shot=mission`, `?shot=drive`, `?shot=foot` (add `&seed=N` for another city seed). `shots.json` lists them in that order, so the most dramatic shot (1-chase.jpg) is first; ?shot= scenes use a slightly closer camera, normal play is unchanged.
 
 ## Controls
 

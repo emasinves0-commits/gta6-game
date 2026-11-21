@@ -9,6 +9,7 @@ export function createRng(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+  // range(lo,hi) is float, int(lo,hi) is inclusive on both ends, pick(list) returns one element.
   return {
     next,
     range: (lo, hi) => lo + next() * (hi - lo),

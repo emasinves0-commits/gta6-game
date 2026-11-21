@@ -9,6 +9,7 @@
 // pedestrians, stealable cars with drift physics, a 5-star police response, a four-mission story
 // about ex-con Jax Merrin, a minimap HUD, saves and a ?shot= staging mode for screenshots.
 //
+// The HUD shows a police dispatch panel, weapon slots, district label and radio line, all driven by game state.
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts

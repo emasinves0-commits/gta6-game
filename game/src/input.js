@@ -10,6 +10,7 @@ export function createInput(canvas) {
     mouseClicked: false,
     onFirstGesture: null,
   };
+  // Keys the browser would otherwise scroll or focus-shift on; we swallow them while playing.
   const BLOCKED = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
   window.addEventListener('keydown', (e) => {
     if (BLOCKED.has(e.code)) e.preventDefault();

@@ -7,6 +7,7 @@ const VIEW_RADIUS = 520;  // world units visible from the centre to the edge
 
 let mapCanvas = null, mapSeed = null;
 
+// Rendered once and cached: the static city (roads, blocks, park, beach, water) at SCALE pixels per world unit.
 function buildMap(game) {
   mapCanvas = document.createElement('canvas');
   mapCanvas.width = Math.ceil(WORLD_W * SCALE); mapCanvas.height = Math.ceil(WORLD_H * SCALE);

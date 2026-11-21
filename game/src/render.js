@@ -10,6 +10,7 @@ function rrect(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
 }
 
+// Pixels per world unit: base camera scale times the zoom (zoom is 1.5 on foot, ~0.8-1 in cars, 1.3-1.4 in ?shot= scenes).
 export function viewScale(game) { return game.camera.scale * (game.camera.zoom || 1); }
 
 export function setViewport(game, w, h) {
