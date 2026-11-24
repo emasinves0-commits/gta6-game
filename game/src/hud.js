@@ -11,6 +11,12 @@ import { rankInfo, standingOf } from './stats.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Portrait palette (canvas fill colours) and the vignette's damage colour, named once.
+const COL_PORTRAIT_BG = '#2d3650', COL_SUIT = '#111', COL_SHIRT_FRONT = '#fff', COL_EYES = '#111', COL_MOUTH = '#7a2a2a', COL_CAP_DEFAULT = '#f2f2f2';
+const VIGNETTE_RGB = '210,20,20';
+// Class names toggled on HUD elements.
+const CLS_ON = 'on', CLS_FLASH = 'flash', CLS_HAVE = 'have', CLS_SEL = 'sel', CLS_COOL = 'cool', CLS_ACT = 'act';
+
 export function createHud(game) {
   const el = {};
   for (const id of ['m-chap', 'm-stage', 'm-title', 'm-prog', 'm-next', 'm-dist', 'dispatch', 'd-code', 'd-rows', 'stars', 'cash', 'clock', 'dist-name', 'dist-stand', 'dist-rep',
@@ -44,21 +50,23 @@ export function createHud(game) {
   function drawPortrait(name) {
     const cv = el['d-face'], g = cv.getContext('2d'), P = PORTRAITS[name] || PORTRAITS.Jax;
     g.clearRect(0, 0, 108, 108);
-    g.fillStyle = '#2d3650'; g.fillRect(0, 0, 108, 108);
+    g.fillStyle = COL_PORTRAIT_BG; g.fillRect(0, 0, 108, 108);
     g.fillStyle = P.shirt; g.beginPath(); g.moveTo(10, 108); g.quadraticCurveTo(54, 66, 98, 108); g.fill();
-    if (P.suit) { g.fillStyle = '#111'; g.fillRect(22, 84, 64, 24); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(46, 84); g.lineTo(62, 84); g.lineTo(54, 108); g.fill(); }
+    if (P.suit) { g.fillStyle = COL_SUIT; g.fillRect(22, 84, 64, 24); g.fillStyle = COL_SHIRT_FRONT; g.beginPath(); g.moveTo(46, 84); g.lineTo(62, 84); g.lineTo(54, 108); g.fill(); }
     g.fillStyle = P.hair;
     if (P.long) g.fillRect(24, 28, 60, 62);
     g.fillStyle = P.skin; g.beginPath(); g.ellipse(54, 52, 24, 28, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = P.hair; g.beginPath(); g.ellipse(54, 34, 26, 15, 0, Math.PI, 0); g.fill();
-    if (P.cap) { g.fillStyle = P.cap === true ? '#f2f2f2' : P.cap; g.fillRect(28, 26, 52, 10); g.fillRect(48, 34, 38, 5); }
-    g.fillStyle = '#111'; g.fillRect(42, 52, 5, 6); g.fillRect(62, 52, 5, 6);
-    g.fillStyle = '#7a2a2a'; g.fillRect(46, 68, 16, 3);
+    if (P.cap) { g.fillStyle = P.cap === true ? COL_CAP_DEFAULT : P.cap; g.fillRect(28, 26, 52, 10); g.fillRect(48, 34, 38, 5); }
+    g.fillStyle = COL_EYES; g.fillRect(42, 52, 5, 6); g.fillRect(62, 52, 5, 6);
+    g.fillStyle = COL_MOUTH; g.fillRect(46, 68, 16, 3);
   }
 
+  const MINUTES_PER_DAY = 1440;
+  const two = (n) => String(Math.floor(n)).padStart(2, '0');
   const clockText = () => {
-    const t = ((game.clock % 1440) + 1440) % 1440;
-    return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+    const t = ((game.clock % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY; // wrap into 0..1439, also for negatives
+    return `${two(t / 60)}:${two(t % 60)}`;
   };
 
   return function updateHud() {
@@ -72,8 +80,8 @@ export function createHud(game) {
     const tgt = obj.target;
     text('m-dist', tgt ? `Waypoint ${Math.round(Math.hypot(tgt.x - p.x, tgt.z - p.z))} m` : '');
     // wanted stars
-    starEls.forEach((s, i) => put('star' + i, i < w.stars, (on) => s.classList.toggle('on', on)));
-    put('starflash', w.flash > 0, (on) => el.stars.classList.toggle('flash', on));
+    starEls.forEach((s, i) => put('star' + i, i < w.stars, (on) => s.classList.toggle(CLS_ON, on)));
+    put('starflash', w.flash > 0, (on) => el.stars.classList.toggle(CLS_FLASH, on));
     // dispatch
     const units = w.stars > 0 ? getDispatch(game) : [];
     put('dispatch-show', w.stars > 0, (on) => { el.dispatch.style.display = on ? 'block' : 'none'; });
@@ -103,8 +111,8 @@ export function createHud(game) {
     // weapons
     WEAPONS.forEach((wd, i) => {
       const s = slotEls[i], own = p.owned[i];
-      put('own' + i, own, (v) => s.d.classList.toggle('have', v));
-      put('sel' + i, p.weapon === i, (v) => s.d.classList.toggle('sel', v));
+      put('own' + i, own, (v) => s.d.classList.toggle(CLS_HAVE, v));
+      put('sel' + i, p.weapon === i, (v) => s.d.classList.toggle(CLS_SEL, v));
       const label = i === 0 ? '∞' : own ? `${p.mag[i]}/${p.reserve[i]}` : '--';
       put('ammo' + i, p.reloadT > 0 && p.weapon === i ? 'RELOAD' : label, (v) => { s.a.textContent = v; });
     });
@@ -121,8 +129,8 @@ export function createHud(game) {
     // crew
     game.crew.forEach((c, i) => {
       const e = crewEls[i];
-      put('crewcool' + i, c.t > 0, (v) => e.d.classList.toggle('cool', v));
-      put('crewact' + i, c.active > 0, (v) => e.d.classList.toggle('act', v));
+      put('crewcool' + i, c.t > 0, (v) => e.d.classList.toggle(CLS_COOL, v));
+      put('crewact' + i, c.active > 0, (v) => e.d.classList.toggle(CLS_ACT, v));
       width_(e.cd, c.t > 0 ? 1 - c.t / c.cd : 1, 'cd' + i);
     });
     // dialogue
@@ -152,7 +160,7 @@ export function createHud(game) {
     put('xh', aiming, (on) => { el.crosshair.style.display = on ? 'block' : 'none'; });
     if (aiming) { el.crosshair.style.left = game.input.mouse.x + 'px'; el.crosshair.style.top = game.input.mouse.y + 'px'; }
     // damage vignette
-    put('vig', Math.round(Math.max(game.hurtFlash || 0, p.hp < 30 ? 0.3 : 0) * 10), (v) => { el.vig.style.boxShadow = `inset 0 0 160px 40px rgba(210,20,20,${v / 10})`; });
+    put('vig', Math.round(Math.max(game.hurtFlash || 0, p.hp < 30 ? 0.3 : 0) * 10), (v) => { el.vig.style.boxShadow = `inset 0 0 160px 40px rgba(${VIGNETTE_RGB},${v / 10})`; });
     // notifications
     const nk = game.notifs.map((n) => n.text).join('|');
     put('notifs', nk, () => { el.notifs.innerHTML = game.notifs.map((n) => `<div>${n.text}</div>`).join(''); });
