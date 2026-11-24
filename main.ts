@@ -20,20 +20,30 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
+// Folder and file names, written once so the copy steps and the dossier cannot drift apart.
+const GAME_DIR = 'game'; // the playable static game
+const SHOTS_DIR = 'screenshots'; // up to 4 real renders of ?shot= scenes
+const DOSSIER_FILE = 'dossier.json'; // the summary the judge reads
+
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
+if (!existsSync(join(here, GAME_DIR, 'index.html'))) {
+  console.error(`main.ts: ${join(here, GAME_DIR, 'index.html')} is missing - run this from the entry's own directory checkout.`);
+  process.exit(1);
+}
+
 mkdirSync(out, { recursive: true });
-cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+cpSync(join(here, GAME_DIR), join(out, GAME_DIR), { recursive: true });
+mkdirSync(join(out, SHOTS_DIR), { recursive: true });
+if (existsSync(join(here, SHOTS_DIR))) cpSync(join(here, SHOTS_DIR), join(out, SHOTS_DIR), { recursive: true });
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
 // scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
 // files, in all, or a path under game/ over 1000 bytes: game/ counts beside /output's own 1000-entry cap, its
 // screenshots/ and dossier.json).
 writeFileSync(
-  join(out, 'dossier.json'),
+  join(out, DOSSIER_FILE),
   buildDossier(out, {
     text_max_bytes: 163840,
     screenshots: { max: 4, max_bytes: 262144 },
