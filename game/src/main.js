@@ -7,18 +7,19 @@ import { buildCity, nodePos, solidAt, districtAt } from './city.js';
 import { buildCityScene, updateScenery } from './cityscape.js';
 import { createInput } from './input.js';
 import { initEffects, updateEffects } from './effects.js';
-import { createCar, updateCars, syncCar, CAR_TYPES } from './vehicles.js';
-import { spawnTraffic, spawnParked, updateTraffic } from './traffic.js';
+import { createCar, updateCars, syncCar, CAR_TYPES, CIVILIAN_TYPES } from './vehicles.js';
+import { spawnTraffic, spawnParked, updateTraffic, placeOnLane } from './traffic.js';
 import { spawnPeds, updatePeds, createPed } from './pedestrians.js';
-import { createWanted, updatePolice, clearWanted, setWanted, removeHeli } from './police.js';
+import { createWanted, updatePolice, clearWanted, setWanted, removeHeli, createCop } from './police.js';
 import { createPlayer, updatePlayer, syncPlayer, wrapAngle, exitCar, enterCar } from './player.js';
 import { playerAttack, processBlasts, spawnPickups, updatePickups } from './combat.js';
-import { createMissionState, updateMissions, say, forceStartMission, restoreMissionProgress } from './missions.js';
+import { createMissionState, updateMissions, say, forceStartMission, restoreMissionProgress, MISSION_COUNT } from './missions.js';
 import { createCrew, updateCrew, spawnCrabs, updateCrabs, createRace, updateRace } from './activities.js';
 import { createStats, createRep, addRP, addRep } from './stats.js';
 import { nearestCar } from './vehicles.js';
 import { createHud } from './hud.js';
 import { createMinimap } from './minimap.js';
+import { createCityMap } from './citymap.js';
 import { hasSave, readSave, writeSave } from './save.js';
 import * as audio from './audio.js';
 
@@ -297,6 +298,35 @@ function clearAround(game, x, z, r) { // keep the staged street readable: no par
   }
 }
 
+// ?shot= staging only: extra moving traffic on one road edge and pedestrians on its sidewalks, so the frame reads as a busy city.
+// `d` is the DIRS index (0 = east, 2 = west) of the lane; `alongs` are metres past node (i,j); the normal-game balance is untouched.
+function addLaneTraffic(game, i, j, d, alongs, speed = 12) {
+  for (const along of alongs) {
+    const car = createCar(game, game.rng.pick(CIVILIAN_TYPES), 0, 0, 0, { driver: 'ai' });
+    placeOnLane(car, i, j, d, along);
+    car.cruise = speed; car.speed = speed; car.vx = Math.sin(car.heading) * speed; car.vz = Math.cos(car.heading) * speed;
+    syncCar(car, 0);
+  }
+}
+
+function addSidewalkPeds(game, xs, roadZ, flee = false) {
+  xs.forEach((x, k) => {
+    const side = k % 2 ? 1 : -1, z = roadZ + side * 11.2;
+    const q = createPed(game, x, z, flee ? { flee: true } : {});
+    q.x = x; q.z = z; q.tx = x + (k % 3 ? 14 : -14); q.tz = z; q.fx = q.tx; q.fz = z; q.fleeT = 6;
+    q.heading = Math.atan2(q.tx - x, 0);
+  });
+}
+
+// Drop AI cars that sit near the camera path (behind or beside the player) so none clips the lens.
+function clearNearCamera(game, radius) {
+  const f = game.player.inCar || game.player;
+  for (const c of [...game.cars]) {
+    if (c === game.player.inCar || c.driver === 'cop') continue;
+    if (Math.hypot(c.x - f.x, c.z - f.z) < radius && ((c.x - f.x) * Math.sin(game.cam.yaw) + (c.z - f.z) * Math.cos(game.cam.yaw)) < 14) { game.scene.remove(c.obj); game.cars.splice(game.cars.indexOf(c), 1); }
+  }
+}
+
 function stageScene(game, name) {
   const p = game.player;
   game.state = 'play';
@@ -321,6 +351,8 @@ function stageScene(game, name) {
     }
     car.speed = 15; car.vx = 15; car.vz = 0; car.ctl.handbrake = false; // freeze the frame mid-pursuit, not mid-stop
     game.cam.zoom = 1.0;
+    addLaneTraffic(game, 3, 4, 2, [20, 44, 62], 13); // oncoming lane only: the pursuit lane stays clear
+    addSidewalkPeds(game, [60, 80, 104, 126, 150].map((v) => car.x + v), n.z);
   } else if (name === 'mission') {
     const n = nodePos(2, 4);
     clearAround(game, n.x - 40, n.z, 120);
@@ -334,34 +366,60 @@ function stageScene(game, name) {
     game.mission.active.data.car = p.inCar; p.inCar.missionCar = true;
     game.mission.armed = false;
     simulate(game, 1.6);
+    clearNearCamera(game, 24);
+    addLaneTraffic(game, 1, 4, 0, [16, 30], 12); // oncoming (east-bound) traffic for the busy street ahead
+    addLaneTraffic(game, 0, 4, 0, [30, 52], 11);
+    addLaneTraffic(game, 1, 4, 2, [20, 40], 11); // same direction, far ahead
+    addSidewalkPeds(game, [n.x - 30, n.x - 52, n.x - 74, n.x - 96, n.x - 118], n.z);
   } else if (name === 'drive') {
-    const n = nodePos(0, 7);
-    clearAround(game, n.x + 120, n.z, 160);
-    laneAutopilot(game, { z: n.z, dir: 1, speed: 20 });
-    putPlayerInCar(game, 'sports', n.x + 20, n.z + LANE, Math.PI / 2, 18, { color: 0xf2b630 });
-    game.rp = 820; game.money = 4210; game.stats.crabs = 5; game.rep['The Strand'] = 70; game.rep['Marina Row'] = 45;
+    const n = nodePos(1, 3); // the Downtown / Central Plaza avenue: towers on the left, shopfronts on the right, facing east into the city
+    clearAround(game, n.x + 120, n.z, 190);
+    laneAutopilot(game, { z: n.z, dir: 1, speed: 18 });
+    putPlayerInCar(game, 'sports', n.x - 40, n.z + LANE, Math.PI / 2, 17, { color: 0xf2b630 });
+    game.rp = 820; game.money = 4210; game.stats.crabs = 5; game.rep['Central Plaza'] = 70; game.rep['Downtown'] = 45;
     forceStartMission(game, 3);
+    setWanted(game, 1); // SBPD presence on the avenue, mission unchanged
     game.cam.zoom = 1.0;
-    simulate(game, 6);
-    game.cam.zoom = 1.1;
+    simulate(game, 4);
+    clearNearCamera(game, 30);
+    addLaneTraffic(game, 2, 3, 0, [22, 46], 14); // same direction, well ahead of the player
+    addLaneTraffic(game, 3, 3, 2, [14, 36, 58, 70], 13); // oncoming lane, all beyond the player
+    addLaneTraffic(game, 3, 3, 0, [16, 40], 12);
+    const patrol = createCar(game, 'police', 0, 0, 0, { driver: 'cop' }); // one SBPD patrol car passing in the oncoming lane
+    placeOnLane(patrol, 3, 3, 2, 26);
+    Object.assign(patrol, { ai: null, unit: 'SBPD-02', role: 'PURSUIT', siren: true, cp: { path: null, pathT: 0, stuckT: 0, revT: 0, copsOut: 0, flankSide: 1 } });
+    syncCar(patrol, 0);
+    addSidewalkPeds(game, [n.x + 30, n.x + 42, n.x + 56, n.x + 66, n.x + 76, n.x + 90, n.x + 104, n.x + 118, n.x + 132, n.x + 146], n.z);
+    simulate(game, 0.05);
+    game.cam.zoom = 1.05;
   } else if (name === 'foot') {
-    const cx = 342, cz = 268; // centre of the Central Plaza block (4,3)
-    p.x = cx - 5; p.z = cz + 15; p.heading = Math.PI + 0.12; game.cam.yaw = Math.PI + 0.12;
+    const cx = 342, cz = 268; // centre of the Central Plaza block (4,3): The Big Score, guards cleared in the plaza under SBPD fire
+    p.x = cx; p.z = cz + 16.5; p.heading = Math.PI + 0.35; game.cam.yaw = Math.PI + 0.35;
     p.weapon = 1; p.mag[1] = 9; p.reserve[1] = 36; p.armor = 55; p.hp = 88;
     game.rp = 140; game.money = 1380; game.stats.crabs = 1; game.rep['Central Plaza'] = 28;
-    game.mission.index = 1; game.mission.armed = false;
-    for (let k = 0; k < 8; k++) {
-      const q = createPed(game, cx - 9 + (k % 4) * 5.2, cz - 2 - Math.floor(k / 4) * 6, { flee: true });
-      q.fx = cx - 2 + (k % 3); q.fz = cz + 25; q.fleeT = 6;
+    forceStartMission(game, 3);
+    const m = game.mission.active; m.stage = 1; m.data.total = 6; // the "eliminate the guards" stage is live
+    game.mission.armed = false; game.dialog = null;
+    for (const [dx, dz] of [[-2, -13], [5, -10], [11, -15], [-9, -9], [14, -5], [-14, -15]]) createCop(game, cx + dx, cz + dz, 'goon').heading = Math.PI;
+    for (let k = 0; k < 10; k++) { // pedestrians scatter across the plaza right in front of the camera
+      const q = createPed(game, cx - 18 + (k % 5) * 8, cz + 4 + Math.floor(k / 5) * 7, { flee: true });
+      q.fx = k % 2 ? cx + 40 : cx - 40; q.fz = cz + 10 + (k % 3) * 8; q.fleeT = 6; q.tx = q.fx; q.tz = q.fz;
+      q.heading = k % 2 ? Math.PI / 2 : -Math.PI / 2;
     }
     p.aimT = 3;
-    game.forceAim = { x: cx, z: cz - 6 };
+    game.forceAim = { x: cx + 5, z: cz - 10 };
     game.input.mouse.right = true;
     game.input.mouse.down = true; simulate(game, 0.12); game.input.mouse.down = false;
     simulate(game, 0.3);
     game.input.mouse.down = true; simulate(game, 0.12); game.input.mouse.down = false;
     p.aimT = 2.5; p.moving = 0;
+    setWanted(game, 3);
     game.cam.zoom = 0.9;
+    const cruiser = createCar(game, 'police', cx - 15, cz + 2, 0.9, { driver: 'cop' }); // SBPD cruiser at the plaza kerb, lights on
+    Object.assign(cruiser, { unit: 'SBPD-01', role: 'PURSUIT', siren: true, cp: { path: null, pathT: 0, stuckT: 0, revT: 0, copsOut: 0, flankSide: 1 } });
+    syncCar(cruiser, 0);
+    for (const [dx, dz] of [[-11, -5], [-17, 8]]) { const o = createCop(game, cx + dx, cz + dz, 'cop'); o.heading = Math.PI / 2; }
+    game.wanted.unitSeq = 1; game.wanted.flash = 0; game.mission.banner = null; // steady stars, no half-faded banner in the capture
   }
   game.cam.x = game.camera.position.x;
 }
@@ -372,6 +430,7 @@ function boot() {
   const game = createGame(canvas);
   const hud = createHud(game);
   const minimap = createMinimap($('mini'), game);
+  const cityMap = createCityMap($('stage'), game);
   window.__solmar = { game, stepGame: (s) => simulate(game, s), THREE };
 
   // fit the 1280x720 stage into the window
@@ -384,6 +443,7 @@ function boot() {
   const startGame = (continueSave) => {
     audio.initAudio(); audio.startMusic();
     show('start', false); show('help', false);
+    game.input.mapOpen = false;
     game.state = 'play';
     if (continueSave) applySave(game, readSave());
     else say(game, 'Lola', "Jax! Welcome to Solmar Bay. Find the green marker - I've got a job for you.", 7);
@@ -393,7 +453,7 @@ function boot() {
     if (game.state === 'menu') return;
     game.state = on ? 'paused' : 'play';
     show('pause', on);
-    if (on) { writeSave(game); const s = game.stats; $('p-stats').innerHTML = `Missions <b>${game.mission.completed}/4</b> &middot; Crabs <b>${s.crabs}/12</b> &middot; Kills <b>${s.kills}</b> &middot; Races won <b>${s.races}</b> &middot; Max heat <b>${s.wantedMax}★</b> &middot; Driven <b>${(s.distance / 1000).toFixed(1)} km</b><br>Progress saved.`; }
+    if (on) { writeSave(game); const s = game.stats; $('p-stats').innerHTML = `Missions <b>${game.mission.completed}/${MISSION_COUNT}</b> &middot; Crabs <b>${s.crabs}/12</b> &middot; Kills <b>${s.kills}</b> &middot; Races won <b>${s.races}</b> &middot; Max heat <b>${s.wantedMax}★</b> &middot; Driven <b>${(s.distance / 1000).toFixed(1)} km</b><br>Progress saved.`; }
   };
   $('b-new').onclick = () => startGame(false);
   $('b-cont').onclick = () => startGame(true);
@@ -405,8 +465,8 @@ function boot() {
   $('h-back').onclick = () => show('help', false);
   addEventListener('keydown', (e) => {
     if (game.state === 'menu') { if (e.code === 'Enter') startGame(hasSave() && e.shiftKey); return; }
-    if (e.code === 'Escape' || e.code === 'KeyP') { if ($('help').classList.contains('show')) show('help', false); else setPaused(game.state !== 'paused'); }
-    else if (e.code === 'KeyM') { audio.toggleMute(); game.notify(audio.isMuted() ? 'Sound muted' : 'Sound on'); }
+    if (e.code === 'Escape' || e.code === 'KeyP') { if (game.input.mapOpen) game.input.mapOpen = false; else if ($('help').classList.contains('show')) show('help', false); else setPaused(game.state !== 'paused'); }
+    else if (e.code === 'KeyN') { audio.toggleMute(); game.notify(audio.isMuted() ? 'Sound muted' : 'Sound on'); }
     else if (e.code === 'KeyT') { audio.setTrack(game.trackIdx = (game.trackIdx || 0) + 1); game.notify('Radio: ' + audio.currentTrack().name); }
   });
   addEventListener('blur', () => { if (game.state === 'play' && !SHOT) setPaused(true); });
@@ -428,7 +488,7 @@ function boot() {
     last = now;
     const p = game.player;
     if (game.state === 'play') {
-      if (!SHOT || game.shotLive) stepGame(game, dt);
+      if ((!SHOT || game.shotLive) && !game.input.mapOpen) stepGame(game, dt); // the city map freezes the world while it is open
       game.input.clearEdges();
       const car = p.inCar;
       audio.setEngine(car ? Math.abs(car.speed) / CAR_TYPES[car.type].maxSpeed : 0, car ? Math.abs(car.ctl.throttle) : 0, !!car && !p.dead);
@@ -445,6 +505,9 @@ function boot() {
     updateWorldVisuals(game);
     game.renderer.render(game.scene, game.camera);
     hud(); minimap();
+    const mapOn = game.input.mapOpen && game.state === 'play';
+    cityMap.open = mapOn;
+    if (mapOn) cityMap.draw();
     game.frame++; frames++;
   }
   requestAnimationFrame(loop);
@@ -459,8 +522,10 @@ function applySave(game, d) {
   game.money = d.money; game.rp = d.rp; game.rep = { ...game.rep, ...d.rep }; game.stats = { ...game.stats, ...d.stats };
   restoreMissionProgress(game, d.missionIndex);
   p.x = d.x; p.z = d.z; p.heading = d.heading || 0; game.cam.yaw = p.heading; p.hp = d.hp || PLAYER_MAX_HP;
-  p.owned = d.owned; p.mag = d.mag; p.reserve = d.reserve;
-  d.crabs.forEach((g, k) => { if (g && game.crabs[k]) { game.crabs[k].got = true; game.crabs[k].mesh.visible = false; } });
+  if (Array.isArray(d.owned)) p.owned = d.owned; // keep the defaults when an older or damaged save lacks the weapon arrays
+  if (Array.isArray(d.mag)) p.mag = d.mag;
+  if (Array.isArray(d.reserve)) p.reserve = d.reserve;
+  (Array.isArray(d.crabs) ? d.crabs : []).forEach((g, k) => { if (g && game.crabs[k]) { game.crabs[k].got = true; game.crabs[k].mesh.visible = false; } });
   game.notify('Save loaded');
 }
 
