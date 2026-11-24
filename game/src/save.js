@@ -1,31 +1,30 @@
-// localStorage save/load: story progress, money, clock and the player's position.
+// localStorage persistence: cash, story progress, position, progression and collectibles.
 import { STORAGE_KEY } from './config.js';
 
 export function hasSave() {
-  try { return !!localStorage.getItem(STORAGE_KEY); } catch (e) { return false; }
+  try { return !!localStorage.getItem(STORAGE_KEY); } catch { return false; }
 }
 
-export function saveGame(game) {
+export function writeSave(game) {
+  const p = game.player;
   const data = {
-    version: 1, money: Math.floor(game.money), missionIndex: game.mission.index, clock: game.clock,
-    x: game.player.x, y: game.player.y, reserve: game.player.reserve, savedAt: Date.now(),
+    v: 1,
+    money: Math.round(game.money), rp: game.rp, rep: game.rep, missionIndex: game.mission.index,
+    x: p.inCar ? p.inCar.x : p.x, z: p.inCar ? p.inCar.z : p.z, heading: p.heading,
+    crabs: game.crabs.map((c) => (c.got ? 1 : 0)), stats: game.stats,
+    owned: p.owned, mag: p.mag, reserve: p.reserve, hp: Math.round(p.hp),
   };
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; } catch (e) { return false; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; } catch { return false; }
 }
 
-export function loadSave() {
+export function readSave() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || data.version !== 1 || !Number.isFinite(data.x) || !Number.isFinite(data.y)) return null; // reject corrupt saves
-    return data;
-  } catch (e) { return null; }
+    const d = raw ? JSON.parse(raw) : null;
+    return d && d.v === 1 ? d : null;
+  } catch { return null; }
 }
 
-export function applySave(game, data, restoreMissionProgress) {
-  game.money = data.money; game.clock = data.clock;
-  game.player.x = data.x; game.player.y = data.y; game.player.reserve = data.reserve ?? 48;
-  game.camera.x = data.x; game.camera.y = data.y;
-  restoreMissionProgress(game, data.missionIndex);
+export function clearSave() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable */ }
 }
