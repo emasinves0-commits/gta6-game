@@ -6,24 +6,29 @@
 
 An entry for the make.fun [Make GTA 6](https://make.fun/bounty/gta6-01) bounty.
 
-A fully original, 2D top-down open-world crime game set in the sun-soaked coastal city of **Solmar Bay**.
-You play Jax Merrin, fresh out of prison and broke, working your way up through a four-mission story
-(First Job, The Pickup, The Getaway, The Big Score) while the police of Solmar Bay take an interest.
+A fully original 3D third-person open-world crime game set in the sun-soaked, golden-hour coastal city of
+**Solmar Bay**. You play Jax Merrin, fresh out of prison and broke, working through a four-mission story
+(First Job, The Pickup, The Getaway, The Big Score) while the SBPD takes an interest.
 
-Everything is written in vanilla JavaScript (ES modules) on an HTML5 canvas. All art is drawn in code and
-all sound (engines, sirens, gunshots, music) is synthesized with WebAudio. No libraries, no assets, no network.
+Built on three.js (vendored in `game/vendor/`, no network at all). Every model, texture and sound is made in
+code: low-poly buildings with canvas window textures, palms, a park, plaza, beach, pier and marina; sound is
+synthesised with WebAudio.
 
 ## Features
 
-- A seeded grid city with buildings, a park, parking lots, a plaza, a beach and the sea, with soft shadows and day/dusk/night lighting
-- Six car types (sedan, taxi, pickup, sports car, van, police cruiser) with arcade drift physics, skid marks, damage, smoke and explosions
-- Traffic that follows the roads, pedestrians that stroll on sidewalks and flee from guns and cars
-- A 1 to 5 star wanted system: police cars chase and ram, cops get out and shoot, roadblocks at higher stars, escape by breaking line of sight
-- Busted and wasted respawns that cost you cash
-- Pistol with ammo and reloading, melee, health and ammo pickups
-- A four-mission story with waypoint arrow, minimap markers, objective tracker and mission banners
-- A dense GTA-style HUD driven by real game state: SBPD dispatch panel (named units SBPD-01.., distance in metres, PURSUIT / RAMMING / ROADBLOCK, CODE n), big gold wanted stars, fists/pistol slots with ammo, district label (Marina Row, City Park, The Strand...), speed + car name and a SOLMAR FM 98.4 radio line that changes track each in-game hour
-- Minimap, HUD, start screen, pause menu, help screen, localStorage save and Continue, M to mute
+- Low-poly 3D city from a seeded RNG (same seed, same city) with soft shadows, fog and a golden-hour sky
+- Third-person chase camera that follows the car or the player and pulls in so it never sits inside a wall
+- Six car types (sedan, taxi, pickup, sports car, van, police cruiser): arcade drift physics, skid marks, damage, smoke, explosions
+- Traffic on the road grid, pedestrians on sidewalks that flee from guns and cars
+- 1-5 star wanted system: cruisers pursue / ram / flank, officers get out and shoot, roadblocks at 3+ stars,
+  a helicopter with a visible spotlight cone, escape by breaking line of sight, busted and wasted respawns
+- Pistol, SMG and shotgun with ammo and reloads, melee, health, armour and weapon pickups
+- Crew abilities: Kenji drops a wanted star, Mina repairs the car, Dez marks every cop on the minimap
+- Street race checkpoints, 12 golden crabs, rank + RP progression, per-district standing
+- Dense HUD driven by real state: mission banner with chapter / STAGE x/y / progress / NEXT, SBPD dispatch
+  panel (SBPD-01.. with role and distance), wanted stars, heading-up round minimap, health + armour, cash,
+  clock, district standing, weapon slots, vehicle name / speed / condition, SOLMAR FM 98.4 radio, crew cards, dialogue box
+- Start screen, pause menu, help, localStorage save + Continue
 
 ## How to play
 
@@ -31,25 +36,34 @@ all sound (engines, sirens, gunshots, music) is synthesized with WebAudio. No li
 node serve.ts
 ```
 
-Then open http://localhost:8080 in desktop Chrome and press Play. Any static file server pointed at `game/` works too.
+Then open http://localhost:8080 in desktop Chrome. Any static server pointed at `game/` works too.
 
-Screenshot staging URLs: `?shot=chase` (4 stars, police pursuit and a roadblock), `?shot=mission`, `?shot=drive`, `?shot=foot` (add `&seed=N` for another city seed). `shots.json` lists them in that order, so the most dramatic shot (1-chase.jpg) is first; ?shot= scenes use a slightly closer camera, normal play is unchanged.
+Staged screenshot scenes: `?shot=chase`, `?shot=mission`, `?shot=drive`, `?shot=foot` (add `&seed=N` for another city). They are listed in `shots.json`, chase first.
+
+## Source layout (game/src)
+
+| File | Job |
+| --- | --- |
+| main.js | boot, renderer, sky, update order, camera, menus, staged scenes |
+| config.js, random.js | tuning constants, seeded RNG |
+| city.js, cityscape.js, geometry.js | grid layout + collision, 3D scenery, mesh merging |
+| vehicles.js, traffic.js, pedestrians.js, characters.js | cars, ambient traffic, people, low-poly figures |
+| police.js, combat.js, player.js | SBPD, weapons and pickups, Jax |
+| missions.js, activities.js, stats.js | story, crew / crabs / race, rank and standing |
+| hud.js, minimap.js | DOM HUD, canvas minimap |
+| audio.js, effects.js, input.js, save.js | WebAudio, particles, keyboard + mouse, saves |
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| W A S D | Move on foot; accelerate, steer and brake in a car |
-| Mouse | Aim |
-| Left click | Shoot |
-| R | Reload |
+| W A S D | Move on foot; drive a car |
+| Mouse / click | Aim / shoot |
 | Shift | Sprint |
-| E | Enter or exit a nearby car (punches when no car is near) |
-| F | Punch |
-| Space | Handbrake / drift |
-| H | Horn |
-| Esc or P | Pause menu |
-| M | Mute |
-
-Follow the green marker to start the next mission and the yellow marker during one. Stealing cars, hitting
-pedestrians and shooting raise your wanted level.
+| R, F | Reload, punch |
+| 1-4 | Weapons |
+| E | Enter or exit a car |
+| Space, H | Handbrake, horn |
+| Z / X / C | Crew: drop a star / repair / mark police |
+| Left / Right arrows, wheel | Camera on foot, zoom |
+| Esc or P, M, T | Pause, mute, next radio track |
