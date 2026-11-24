@@ -5,10 +5,11 @@ import { getObjective } from './missions.js';
 
 const SIZE = 184;           // CSS pixels of the dial
 const VIEW_R = 105;         // metres from centre to rim
-const RES = 2;              // pixels per metre in the static layer
-const PAD = 60;             // margin around the city in the static layer
+export const RES = 2;              // pixels per metre in the static layer
+export const PAD = 60;             // margin around the city in the static layer
+const RIM_HALO = 'rgba(255,236,200,0.85)', RIM_HALO_W = 2; // outer halo ring so the dial edge never merges with dark road behind it
 
-function paintStatic(city) {
+export function paintStatic(city) {
   const c = document.createElement('canvas');
   c.width = (WORLD_W + PAD * 2) * RES; c.height = (WORLD_H + PAD * 2 + 40) * RES;
   const g = c.getContext('2d');
@@ -117,6 +118,7 @@ export function createMinimap(canvas, game) {
     g.save(); g.translate(SIZE / 2, SIZE / 2);
     g.lineWidth = 4; g.strokeStyle = '#0d1018'; g.beginPath(); g.arc(0, 0, SIZE / 2 - 2, 0, Math.PI * 2); g.stroke();
     g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(0, 0, SIZE / 2 - 4, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = RIM_HALO_W; g.strokeStyle = RIM_HALO; g.beginPath(); g.arc(0, 0, SIZE / 2 - 1, 0, Math.PI * 2); g.stroke(); // light outer halo: the dial reads as a full circle even over dark asphalt
     const nx = Math.sin(ang) * (SIZE / 2 - 12), ny = -Math.cos(ang) * (SIZE / 2 - 12);
     g.fillStyle = '#d7263d'; g.beginPath(); g.arc(nx, ny, 8, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#fff'; g.font = 'bold 11px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('N', nx, ny + 0.5);
