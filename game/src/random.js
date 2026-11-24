@@ -1,20 +1,18 @@
-// Seeded random number generator (mulberry32) so the city is identical on every load.
-
-export function createRng(seed) {
-  let state = (seed >>> 0) || 1;
+// Seeded RNG (mulberry32) so the same seed always builds the same city.
+export function createRng(seed = 1) {
+  let s = (seed >>> 0) || 1;
   const next = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  // range(lo,hi) is float, int(lo,hi) is inclusive on both ends, pick(list) returns one element.
   return {
     next,
-    range: (lo, hi) => lo + next() * (hi - lo),
-    int: (lo, hi) => Math.floor(lo + next() * (hi - lo + 1)),
+    range: (a, b) => a + next() * (b - a),
+    int: (a, b) => Math.floor(a + next() * (b - a + 1)),
+    pick: (arr) => arr[Math.floor(next() * arr.length)],
     chance: (p) => next() < p,
-    pick: (list) => list[Math.floor(next() * list.length)],
   };
 }
