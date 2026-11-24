@@ -1,207 +1,231 @@
-// City generation for Solmar Bay: road grid, blocks, buildings, park, beach, trees, and collision queries.
-import { COLS, ROWS, BLOCK, ROAD_W, PITCH, SIDEWALK, WORLD_W, WORLD_H, WATER_Y, ROADS_H, BUILDING_PALETTE } from './config.js';
-import { createRng } from './random.js';
+// City layout data and collision queries for Solmar Bay: road grid, blocks, districts, solids, parking, sidewalks.
+import { COLS, ROWS, BLOCK, ROAD_W, PITCH, WORLD_W, ROADS_H, WORLD_H, BUILDING_PALETTE } from './config.js';
 
-const CELL = 128;
+export const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // E, S, W, N  (x east, z south)
+const CELL = 24;
 
-export function roadCenterX(i) { return i * PITCH + ROAD_W / 2; }
-export function roadCenterY(j) { return j * PITCH + ROAD_W / 2; }
-export function nodePosition(i, j) { return { x: roadCenterX(i), y: roadCenterY(j) }; }
+export const nodePos = (i, j) => ({ x: i * PITCH + ROAD_W / 2, z: j * PITCH + ROAD_W / 2 });
+export function blockRect(i, j) {
+  const x0 = i * PITCH + ROAD_W, z0 = j * PITCH + ROAD_W;
+  return { x0, z0, x1: x0 + BLOCK, z1: z0 + BLOCK };
+}
+export const nodeValid = (i, j) => i >= 0 && j >= 0 && i <= COLS && j <= ROWS;
+export function nearestNode(x, z) {
+  return { i: Math.max(0, Math.min(COLS, Math.round((x - ROAD_W / 2) / PITCH))), j: Math.max(0, Math.min(ROWS, Math.round((z - ROAD_W / 2) / PITCH))) };
+}
 
-export function createCity(seed) {
-  const rng = createRng(seed * 7919 + 11);
-  const city = {
-    width: WORLD_W, height: WORLD_H, waterY: WATER_Y, blocks: [], buildings: [], trees: [], decor: [],
-    solids: [], buckets: new Map(), landmarks: {}, parkBlock: null,
-  };
-  const special = { '4,3': 'park', '2,1': 'hospital', '6,2': 'police', '7,5': 'lot', '1,5': 'lot', '4,6': 'lot', '2,3': 'plaza' };
+export function districtOfBlock(i, j) {
+  if (j >= 6) return i <= 2 ? 'Marina Row' : 'The Strand';
+  if (i >= 6) return 'Harbor Heights';
+  if (i <= 2) return j <= 3 ? 'City Park' : 'Marina Row';
+  return j <= 2 ? 'Downtown' : 'Central Plaza';
+}
+export function districtAt(x, z) {
+  const i = Math.max(0, Math.min(COLS - 1, Math.floor(x / PITCH)));
+  const j = Math.max(0, Math.min(ROWS - 1, Math.floor(z / PITCH)));
+  return districtOfBlock(i, j);
+}
+export function blockAt(x, z) { return { i: Math.floor((x - ROAD_W) / PITCH + 0.0001 * 0), j: Math.floor((z - ROAD_W) / PITCH) }; }
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const block = { c, r, x: c * PITCH + ROAD_W, y: r * PITCH + ROAD_W, w: BLOCK, h: BLOCK, kind: special[`${c},${r}`] || 'buildings' };
-      city.blocks.push(block);
-      if (block.kind === 'park') { city.parkBlock = block; addParkTrees(city, block, rng); continue; }
-      if (block.kind === 'lot' || block.kind === 'plaza') { addStreetTrees(city, block, rng); continue; }
-      if (block.kind === 'hospital' || block.kind === 'police') {
-        const b = addBuilding(city, block.x + SIDEWALK + 10, block.y + SIDEWALK + 20, BLOCK - 2 * SIDEWALK - 20, BLOCK - 2 * SIDEWALK - 40,
-          block.kind === 'hospital' ? ['#f4f6f8', '#c9d4dc'] : ['#7a94c4', '#32487a'], 16, rng);
-        b.label = block.kind;
-        addStreetTrees(city, block, rng);
-        continue;
-      }
-      subdivideBlock(city, block, rng);
-      addStreetTrees(city, block, rng);
+export function onRoad(x, z) {
+  if (x < 0 || x > WORLD_W || z < 0 || z > ROADS_H) return false;
+  const fx = x % PITCH, fz = z % PITCH;
+  return fx < ROAD_W || fz < ROAD_W;
+}
+
+function addSolid(city, s) {
+  const x0 = (s.x0 ?? s.x - s.r), x1 = (s.x1 ?? s.x + s.r), z0 = (s.z0 ?? s.z - s.r), z1 = (s.z1 ?? s.z + s.r);
+  for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
+    for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) {
+      const k = cx * 4096 + cz;
+      (city.grid.get(k) || city.grid.set(k, []).get(k)).push(s);
     }
   }
+}
 
-  // Waterfront: sand strip below the shore road, then impassable sea.
-  city.solids.push({ x: -200, y: WATER_Y, w: WORLD_W + 400, h: 800, water: true });
-  for (let i = 0; i < 26; i++) {
-    city.trees.push({ x: rng.range(30, WORLD_W - 30), y: rng.range(ROADS_H + 30, WATER_Y - 30), r: 15, palm: true });
+export function buildCity(rng) {
+  const city = { grid: new Map(), blocks: [], palms: [], parkLots: [], curbSpots: [], lamps: [], solids: [] };
+  const push = (s) => { city.solids.push(s); addSolid(city, s); };
+  city.addSolid = push;
+  for (let i = 0; i < COLS; i++) {
+    for (let j = 0; j < ROWS; j++) {
+      const r = blockRect(i, j);
+      const district = districtOfBlock(i, j);
+      const block = { i, j, district, rect: r, lots: [], kind: 'bld' };
+      if ((i === 1 && j === 1) || (i === 2 && j === 1) || (i === 1 && j === 2)) block.kind = 'park';
+      else if (i === 4 && j === 3) block.kind = 'plaza';
+      else if (j < 6 && district !== 'Downtown' && rng.chance(0.13)) block.kind = 'lot';
+      city.blocks.push(block);
+      const inset = 4.2;
+      if (block.kind === 'bld') {
+        const hRange = district === 'Downtown' ? [26, 74] : district === 'Harbor Heights' ? [10, 26] : district === 'The Strand' ? [6, 13] : [8, 22];
+        const layout = district === 'Downtown' ? rng.pick(['A', 'C', 'C']) : rng.pick(['A', 'B', 'B', 'C']);
+        const rects = [];
+        const x0 = r.x0 + inset, x1 = r.x1 - inset, z0 = r.z0 + inset, z1 = r.z1 - inset, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, g = 2.2;
+        if (layout === 'A') rects.push([x0, z0, x1, z1]);
+        else if (layout === 'B') {
+          const sp = rng.range(-6, 6);
+          if (rng.chance(0.5)) rects.push([x0, z0, mx + sp - g, z1], [mx + sp + g, z0, x1, z1]);
+          else rects.push([x0, z0, x1, mz + sp - g], [x0, mz + sp + g, x1, z1]);
+        } else rects.push([x0, z0, mx - g, mz - g], [mx + g, z0, x1, mz - g], [x0, mz + g, mx - g, z1], [mx + g, mz + g, x1, z1]);
+        for (const q of rects) {
+          const h = rng.range(hRange[0], hRange[1]) * (rects.length === 4 ? 0.8 : 1);
+          const lot = { x0: q[0], z0: q[1], x1: q[2], z1: q[3], h, color: rng.pick(BUILDING_PALETTE), tier: h > 38, ac: rng.int(1, 3) };
+          block.lots.push(lot);
+          push({ x0: lot.x0, z0: lot.z0, x1: lot.x1, z1: lot.z1, h });
+        }
+      } else if (block.kind === 'plaza') {
+        push({ x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, r: 5, h: 1.4 });
+      } else if (block.kind === 'lot') {
+        const lot = { x0: r.x0 + 4, z0: r.z0 + 4, x1: r.x1 - 4, z1: r.z1 - 4 };
+        city.parkLots.push({ block, ...lot, spots: [] });
+        const L = city.parkLots[city.parkLots.length - 1];
+        for (let k = 0; k < 6; k++) for (const row of [0, 1]) {
+          if (rng.chance(0.55)) L.spots.push({ x: lot.x0 + 5 + k * 8, z: row ? lot.z1 - 7 : lot.z0 + 7, h: Math.PI / 2 * (row ? 0 : 2) });
+        }
+      }
+      // palms along the sidewalks (and some trees inside the park)
+      const step = 13;
+      const sides = [[r.x0, r.z0, 1, 0, 0.0, 1.5], [r.x0, r.z1, 1, 0, 0, -1.5], [r.x0, r.z0, 0, 1, 1.5, 0], [r.x1, r.z0, 0, 1, -1.5, 0]];
+      for (const [sx, sz, dx, dz, ox, oz] of sides) {
+        for (let t = 8; t < BLOCK - 4; t += step) {
+          if (!rng.chance(district === 'The Strand' || district === 'Marina Row' ? 0.85 : 0.5)) continue;
+          const p = { x: sx + dx * t + ox, z: sz + dz * t + oz, h: rng.range(5.5, 8.5), lean: rng.range(-0.18, 0.18), rot: rng.range(0, 6.28) };
+          city.palms.push(p);
+          push({ x: p.x, z: p.z, r: 0.45, h: 6 });
+        }
+      }
+      if (block.kind === 'park') {
+        for (let n = 0; n < 9; n++) {
+          const p = { x: r.x0 + rng.range(8, BLOCK - 8), z: r.z0 + rng.range(8, BLOCK - 8), h: rng.range(5, 8), lean: rng.range(-0.2, 0.2), rot: rng.range(0, 6.28), tree: true };
+          city.palms.push(p);
+          push({ x: p.x, z: p.z, r: 0.5, h: 6 });
+        }
+      }
+      // curb parking spots on the south and north faces
+      if (block.kind !== 'park') for (let t = 10; t < BLOCK - 6; t += 11) {
+        if (rng.chance(0.4)) city.curbSpots.push({ x: r.x0 + t, z: r.z0 - 7.0, h: Math.PI / 2 });
+        if (rng.chance(0.4)) city.curbSpots.push({ x: r.x0 + t, z: r.z1 + 7.0, h: -Math.PI / 2 });
+      }
+    }
   }
-  for (let i = 0; i < 18; i++) {
-    city.decor.push({ kind: 'umbrella', x: rng.range(60, WORLD_W - 60), y: rng.range(ROADS_H + 50, WATER_Y - 30), color: rng.pick(['#e8574a', '#f2c744', '#3fa9c9', '#ffffff']) });
+  // street lamps at every intersection corner
+  for (let i = 0; i <= COLS; i++) for (let j = 0; j <= ROWS; j++) {
+    const n = nodePos(i, j);
+    city.lamps.push({ x: n.x + 10, z: n.z + 10 });
   }
-  // Boundary walls so nothing leaves the map.
-  city.solids.push({ x: -100, y: -100, w: 100, h: WORLD_H + 300 }, { x: WORLD_W, y: -100, w: 100, h: WORLD_H + 300 },
-    { x: -100, y: -100, w: WORLD_W + 200, h: 100 });
-
-  const hos = blockAt(city, 2, 1), pol = blockAt(city, 6, 2), park = city.parkBlock;
-  city.landmarks = {
-    hospital: { x: hos.x + 7, y: hos.y + BLOCK / 2 },
-    police: { x: pol.x + 7, y: pol.y + BLOCK / 2 },
-    park: { x: park.x + BLOCK / 2, y: park.y + BLOCK / 2 },
-    start: { x: blockAt(city, 3, 3).x + 7, y: blockAt(city, 3, 3).y + 40 },
-  };
-  for (const s of city.solids) insertSolid(city, s);
+  // beach pier + marina posts are decorative; the sea blocks travel past WORLD_H
   return city;
 }
 
-export function blockAt(city, c, r) { return city.blocks[r * COLS + c]; }
-
-// Named districts: each is anchored on a block (col,row); the label is the nearest anchor, with the beach strip as The Strand.
-const DISTRICTS = [
-  { name: 'Old Cannery', c: 1, r: 1 }, { name: 'Solmar General', c: 2, r: 1 }, { name: 'Dock 9', c: 7, r: 0 },
-  { name: 'Marina Row', c: 7, r: 5 }, { name: 'Central Plaza', c: 2, r: 3 }, { name: 'City Park', c: 4, r: 4 },
-  { name: 'Precinct Hill', c: 6, r: 2 }, { name: 'Palm Avenue', c: 1, r: 5 }, { name: 'Harbor Heights', c: 4, r: 1 },
-  { name: 'Coral Flats', c: 4, r: 6 },
-];
-export function districtAt(x, y) {
-  if (y > ROADS_H) return 'The Strand';
-  let best = DISTRICTS[0].name, bestD = Infinity;
-  for (const d of DISTRICTS) {
-    const dx = x - (d.c * PITCH + ROAD_W + BLOCK / 2), dy = y - (d.r * PITCH + ROAD_W + BLOCK / 2), dd = dx * dx + dy * dy;
-    if (dd < bestD) { bestD = dd; best = d.name; }
+// Push a circle out of nearby solids. Returns {nx,nz,depth} of the deepest hit or null; mutates pos.
+export function pushOut(city, pos, r, minH = 0.3) {
+  let best = null;
+  const cx0 = Math.floor((pos.x - r) / CELL), cx1 = Math.floor((pos.x + r) / CELL);
+  const cz0 = Math.floor((pos.z - r) / CELL), cz1 = Math.floor((pos.z + r) / CELL);
+  for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) {
+    const list = city.grid.get(cx * 4096 + cz);
+    if (!list) continue;
+    for (const s of list) {
+      if (s.h < minH) continue;
+      let nx, nz, d;
+      if (s.r !== undefined) {
+        const dx = pos.x - s.x, dz = pos.z - s.z, dist = Math.hypot(dx, dz);
+        d = s.r + r - dist;
+        if (d <= 0) continue;
+        nx = dist > 1e-4 ? dx / dist : 1; nz = dist > 1e-4 ? dz / dist : 0;
+      } else {
+        const qx = Math.max(s.x0, Math.min(pos.x, s.x1)), qz = Math.max(s.z0, Math.min(pos.z, s.z1));
+        const dx = pos.x - qx, dz = pos.z - qz, dist = Math.hypot(dx, dz);
+        if (dist > 1e-4) {
+          d = r - dist;
+          if (d <= 0) continue;
+          nx = dx / dist; nz = dz / dist;
+        } else {
+          const l = pos.x - s.x0, rr = s.x1 - pos.x, t = pos.z - s.z0, b = s.z1 - pos.z;
+          const m = Math.min(l, rr, t, b);
+          d = m + r;
+          if (m === l) { nx = -1; nz = 0; } else if (m === rr) { nx = 1; nz = 0; } else if (m === t) { nx = 0; nz = -1; } else { nx = 0; nz = 1; }
+        }
+      }
+      pos.x += nx * d; pos.z += nz * d;
+      if (!best || d > best.depth) best = { nx, nz, depth: d };
+    }
   }
   return best;
 }
 
-function addBuilding(city, x, y, w, h, palette, height, rng) {
-  const b = { x, y, w, h, wall: palette[0], roof: palette[1], height, decor: [] };
-  const n = rng.int(0, 3);
-  for (let i = 0; i < n && w > 30 && h > 30; i++) {
-    b.decor.push({ x: rng.range(6, w - 22), y: rng.range(6, h - 18), w: rng.range(10, 18), h: rng.range(8, 14) });
-  }
-  city.buildings.push(b);
-  city.solids.push(b);
-  return b;
+// World bounds: the city edge and the sea. Returns a hit normal when clamped.
+export function clampToWorld(pos, r, seaMargin = 0) {
+  let hit = null;
+  if (pos.x < r) { pos.x = r; hit = { nx: 1, nz: 0 }; }
+  if (pos.x > WORLD_W - r) { pos.x = WORLD_W - r; hit = { nx: -1, nz: 0 }; }
+  if (pos.z < r) { pos.z = r; hit = { nx: 0, nz: 1 }; }
+  const zmax = WORLD_H - seaMargin - r;
+  if (pos.z > zmax) { pos.z = zmax; hit = { nx: 0, nz: -1 }; }
+  return hit;
 }
 
-function subdivideBlock(city, block, rng) {
-  const inner = BLOCK - 2 * SIDEWALK, gap = 8;
-  const x0 = block.x + SIDEWALK, y0 = block.y + SIDEWALK;
-  const cols = rng.int(1, 3), rows = rng.int(1, 2);
-  const cw = (inner - gap * (cols - 1)) / cols, rh = (inner - gap * (rows - 1)) / rows;
-  for (let cy = 0; cy < rows; cy++) {
-    for (let cx = 0; cx < cols; cx++) {
-      const pal = rng.pick(BUILDING_PALETTE);
-      addBuilding(city, x0 + cx * (cw + gap), y0 + cy * (rh + gap), cw, rh, pal, rng.int(8, 18), rng);
+// Is the point inside a tall solid (used for line of sight / bullets / camera)?
+export function solidAt(city, x, z, y) {
+  const list = city.grid.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (!list) return false;
+  for (const s of list) {
+    if (s.h < y) continue;
+    if (s.r !== undefined) { if (Math.hypot(x - s.x, z - s.z) < s.r) return true; }
+    else if (x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1) return true;
+  }
+  return false;
+}
+
+export function segBlocked(city, x0, z0, x1, z1, y = 1.5, step = 1.5) {
+  const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / step);
+  for (let k = 1; k < n; k++) {
+    const t = k / n;
+    if (solidAt(city, x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, y)) return t * d;
+  }
+  return -1;
+}
+
+export function randomRoadSpot(city, rng) {
+  const n = nodePos(rng.int(0, COLS), rng.int(0, ROWS));
+  return n;
+}
+
+// A random point on a sidewalk strip (for pedestrians, pickups, crabs).
+export function sidewalkPoint(city, rng) {
+  for (let tries = 0; tries < 30; tries++) {
+    const b = city.blocks[rng.int(0, city.blocks.length - 1)], r = b.rect, side = rng.int(0, 3), t = rng.range(3, BLOCK - 3), o = 1.5;
+    const p = side === 0 ? { x: r.x0 + t, z: r.z0 + o } : side === 1 ? { x: r.x0 + t, z: r.z1 - o } : side === 2 ? { x: r.x0 + o, z: r.z0 + t } : { x: r.x1 - o, z: r.z0 + t };
+    if (!solidAt(city, p.x, p.z, 0.3)) return { ...p, block: b };
+  }
+  return { ...nodePos(1, 1), block: city.blocks[0] };
+}
+
+// Block corner point (inset into the sidewalk): sx, sz in {0,1}.
+export function cornerPoint(i, j, sx, sz, inset = 1.5) {
+  const r = blockRect(i, j);
+  return { x: sx ? r.x1 - inset : r.x0 + inset, z: sz ? r.z1 - inset : r.z0 + inset };
+}
+export const blockValid = (i, j) => i >= 0 && j >= 0 && i < COLS && j < ROWS;
+
+// Road path between nodes (BFS over the grid) used by police: returns list of {i,j} from a to b.
+export function roadPath(a, b) {
+  const key = (n) => n.i * 100 + n.j;
+  const prev = new Map([[key(a), null]]);
+  const q = [a];
+  while (q.length) {
+    const c = q.shift();
+    if (c.i === b.i && c.j === b.j) break;
+    for (const [dx, dz] of DIRS) {
+      const n = { i: c.i + dx, j: c.j + dz };
+      if (!nodeValid(n.i, n.j) || prev.has(key(n))) continue;
+      prev.set(key(n), c);
+      q.push(n);
     }
   }
-}
-
-function addStreetTrees(city, block, rng) {
-  const corners = [[8, 8], [BLOCK - 8, 8], [8, BLOCK - 8], [BLOCK - 8, BLOCK - 8]];
-  for (const [dx, dy] of corners) if (rng.chance(0.55)) city.trees.push({ x: block.x + dx, y: block.y + dy, r: 11 });
-}
-
-function addParkTrees(city, block, rng) {
-  for (let i = 0; i < 22; i++) city.trees.push({ x: block.x + rng.range(16, BLOCK - 16), y: block.y + rng.range(16, BLOCK - 16), r: rng.range(12, 19) });
-  city.decor.push({ kind: 'pond', x: block.x + BLOCK * 0.68, y: block.y + BLOCK * 0.66, rx: 34, ry: 22 });
-}
-
-function insertSolid(city, rect) {
-  const x0 = Math.floor(rect.x / CELL), x1 = Math.floor((rect.x + rect.w) / CELL);
-  const y0 = Math.floor(rect.y / CELL), y1 = Math.floor((rect.y + rect.h) / CELL);
-  for (let cy = Math.max(-1, y0); cy <= Math.min(y1, 40); cy++) {
-    for (let cx = Math.max(-1, x0); cx <= Math.min(x1, 40); cx++) {
-      const key = cx * 100 + cy;
-      let list = city.buckets.get(key);
-      if (!list) { list = []; city.buckets.set(key, list); }
-      list.push(rect);
-    }
-  }
-}
-
-function nearbySolids(city, x, y, r) {
   const out = [];
-  const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);
-  const y0 = Math.floor((y - r) / CELL), y1 = Math.floor((y + r) / CELL);
-  for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
-    const list = city.buckets.get(cx * 100 + cy);
-    if (list) for (const s of list) if (!out.includes(s)) out.push(s);
-  }
+  let c = prev.has(key(b)) ? b : null;
+  while (c) { out.unshift(c); c = prev.get(key(c)); }
   return out;
-}
-
-// Pushes a circle out of every solid. Returns {x, y, hit, nx, ny} with the strongest contact normal.
-export function resolveCircle(city, x, y, r) {
-  let hit = false, nx = 0, ny = 0, best = 0;
-  for (const s of nearbySolids(city, x, y, r)) {
-    const px = Math.max(s.x, Math.min(x, s.x + s.w)), py = Math.max(s.y, Math.min(y, s.y + s.h));
-    let dx = x - px, dy = y - py;
-    const d2 = dx * dx + dy * dy;
-    if (d2 >= r * r) continue;
-    let depth;
-    if (d2 > 0.0001) {
-      const d = Math.sqrt(d2); dx /= d; dy /= d; depth = r - d;
-    } else {
-      const left = x - s.x, right = s.x + s.w - x, top = y - s.y, bottom = s.y + s.h - y;
-      const m = Math.min(left, right, top, bottom);
-      if (m === left) { dx = -1; dy = 0; } else if (m === right) { dx = 1; dy = 0; } else if (m === top) { dx = 0; dy = -1; } else { dx = 0; dy = 1; }
-      depth = r + m;
-    }
-    x += dx * depth; y += dy * depth;
-    hit = true;
-    if (depth > best) { best = depth; nx = dx; ny = dy; }
-  }
-  return { x, y, hit, nx, ny, depth: best };
-}
-
-export function pointSolid(city, x, y) {
-  for (const s of nearbySolids(city, x, y, 1)) if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return true;
-  return false;
-}
-
-export function lineBlocked(city, x1, y1, x2, y2) {
-  const dx = x2 - x1, dy = y2 - y1, steps = Math.ceil(Math.hypot(dx, dy) / 14);
-  for (let i = 1; i < steps; i++) {
-    const t = i / steps;
-    for (const s of nearbySolids(city, x1 + dx * t, y1 + dy * t, 1)) {
-      if (s.water) continue;
-      const px = x1 + dx * t, py = y1 + dy * t;
-      if (px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h) return true;
-    }
-  }
-  return false;
-}
-
-// True when the point lies on the paved road surface (not on a sidewalk, building or beach).
-export function onRoad(x, y) {
-  if (y > ROADS_H || x < 0 || x > WORLD_W || y < 0) return false;
-  const mx = ((x % PITCH) + PITCH) % PITCH, my = ((y % PITCH) + PITCH) % PITCH;
-  return mx < ROAD_W || my < ROAD_W;
-}
-
-export function nearestNode(x, y) {
-  const i = Math.max(0, Math.min(COLS, Math.round((x - ROAD_W / 2) / PITCH)));
-  const j = Math.max(0, Math.min(ROWS, Math.round((y - ROAD_W / 2) / PITCH)));
-  return { i, j };
-}
-
-// Random point on a sidewalk ring around a random block (used for pedestrians and pickups).
-export function randomSidewalkPoint(city, rng) {
-  const b = rng.pick(city.blocks);
-  const edge = rng.int(0, 3), t = rng.range(10, BLOCK - 10), o = SIDEWALK * 0.5;
-  if (edge === 0) return { x: b.x + t, y: b.y + o };
-  if (edge === 1) return { x: b.x + t, y: b.y + BLOCK - o };
-  if (edge === 2) return { x: b.x + o, y: b.y + t };
-  return { x: b.x + BLOCK - o, y: b.y + t };
-}
-
-export function walkableForPed(city, x, y, anywhere = false) {
-  if (y > WATER_Y - 6 || x < 4 || x > WORLD_W - 4 || y < 4) return false;
-  if (pointSolid(city, x, y)) return false;
-  if (anywhere || y > ROADS_H) return true;
-  return !onRoad(x, y);
 }
