@@ -4,11 +4,12 @@ import * as THREE from 'three';
 import { MAX_STARS, COOLDOWN_BASE, COOLDOWN_PER_STAR, SIGHT_RANGE, HELI_SIGHT, CRUISERS_PER_STAR, BUST_TIME } from './config.js';
 import { nodePos, nearestNode, roadPath, segBlocked, DIRS, pushOut, clampToWorld } from './city.js';
 import { createCar, removeCar, CAR_TYPES } from './vehicles.js';
-import { pickEdge, placeOnLane } from './traffic.js';
 import { makeHuman, poseHuman } from './characters.js';
-import { hitscan } from './combat.js';
 import { play } from './audio.js';
 import { setPlayerKillsStat } from './stats.js';
+// traffic.js / combat.js hooks are bound by main.js (keeps police.js free of those import edges).
+let pickEdge, placeOnLane, hitscan;
+export function bindPolice(hooks) { ({ pickEdge, placeOnLane, hitscan } = hooks); }
 
 const THRESH = [0, 20, 55, 105, 170, 250];
 const starsFor = (pts) => { let s = 0; for (let k = 1; k < THRESH.length; k++) if (pts >= THRESH[k]) s = k; return s; };
