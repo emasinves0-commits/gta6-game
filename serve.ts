@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const DEFAULT_PORT = 8080;
 const HOST = '127.0.0.1'; // loopback only: this is a dev convenience, never exposed
+const CACHE_CONTROL = 'no-store'; // always serve the files as they are on disk while developing
 const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
@@ -60,13 +61,13 @@ createServer((request, response) => {
     if (!stats.isFile()) throw new Error('not a file');
     size = stats.size;
   } catch {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end(`404 not found: ${pathname}`);
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end(`404 not found: ${pathname} (only files under game/ are served)`);
     return;
   }
   response.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,
-    'cache-control': 'no-store',
+    'cache-control': CACHE_CONTROL,
   });
   createReadStream(file).pipe(response);
 }).listen(port, HOST, () => {
