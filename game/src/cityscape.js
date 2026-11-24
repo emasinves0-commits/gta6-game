@@ -133,7 +133,31 @@ export function buildCityScene(city, scene, rng) {
       props.cyl(cx, 1.3, cz, 4.2, 4.2, 0.2, 0x4fb8da, 16);
       props.cyl(cx, 2.4, cz, 0.5, 0.8, 2.4, 0xe9dfcd, 8);
       props.sphere(cx, 3.8, cz, 0.9, 0xbfe9f5);
-      for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; props.box(cx + Math.cos(a) * 14, 0.5, cz + Math.sin(a) * 14, 3, 0.5, 0.8, 0x7a5535, a); }
+      // park benches: seat + backrest + legs, facing the fountain (two rings), so nothing reads as a floating block
+      const bench = (bx, bz, a) => {
+        const sa = Math.sin(a), ca = Math.cos(a);
+        props.box(bx, 0.52, bz, 3, 0.14, 0.8, 0x8a5a32, a);
+        props.box(bx - 0.36 * sa, 0.95, bz - 0.36 * ca, 3, 0.62, 0.12, 0x7a4d2b, a);
+        for (const s of [-1.2, 1.2]) props.box(bx + s * ca, 0.26, bz - s * sa, 0.14, 0.5, 0.7, 0x2e2f34, a);
+      };
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; bench(cx + Math.sin(a) * 17, cz + Math.cos(a) * 17, a + Math.PI); }
+      for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; bench(cx + Math.sin(a) * 11, cz + Math.cos(a) * 11, a + Math.PI); }
+      // planters at the plaza corners, vendor carts with striped umbrellas, and bins
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const px = cx + sx * 22, pz = cz + sz * 22;
+        props.box(px, 0.55, pz, 3.2, 0.9, 3.2, 0xcdbd95);
+        props.sphere(px, 1.6, pz, 1.5, 0x4f9f3f, 1, 0.9, 1, 7);
+        props.sphere(px + 0.6, 2.1, pz - 0.4, 0.9, 0x62b44c, 1, 1, 1, 7);
+      }
+      const cartCols = [0xd9534f, 0x2f8f9d, 0xe2a03f];
+      for (let k = 0; k < 3; k++) {
+        const vx = cx - 20 + k * 20, vz = cz - 24 + (k === 1 ? -2 : 0);
+        props.box(vx, 0.7, vz, 2.6, 1.0, 1.4, 0xf2e6c8);
+        props.box(vx, 1.25, vz, 2.8, 0.12, 1.6, 0x6a4a2a);
+        props.cyl(vx, 2.0, vz, 0.05, 0.05, 2.2, 0xeeeeee, 5);
+        props.cyl(vx, 3.1, vz, 0.15, 2.0, 0.7, cartCols[k], 8);
+      }
+      for (let k = 0; k < 6; k++) { const a = k * 1.05 + 0.5; props.cyl(cx + Math.sin(a) * 8.5, 0.5, cz + Math.cos(a) * 8.5, 0.34, 0.3, 0.8, 0x3a4a3a, 6); }
     } else if (b.kind === 'lot') {
       plain.floor(r.x0 + 3, r.z0 + 3, r.x1 - 3, r.z1 - 3, 0.21, 0xffffff, [0, 0, 6, 6]);
       for (let k = 0; k <= 6; k++) { flat.box(r.x0 + 4 + k * 8, 0.23, r.z0 + 9, 0.2, 0.02, 9, 0xeeeeee); flat.box(r.x0 + 4 + k * 8, 0.23, r.z1 - 9, 0.2, 0.02, 9, 0xeeeeee); }
