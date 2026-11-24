@@ -2,17 +2,18 @@
 export function createInput(canvas) {
   const keys = new Set();
   const edge = new Set();
-  const input = { keys, mouse: { x: 640, y: 360, down: false, right: false, wheel: 0 }, locked: false, mapOpen: false }; // mapOpen: full-screen city map (M)
+  const input = { keys, mouse: { x: 640, y: 360, down: false, right: false, wheel: 0 }, locked: false, mapOpen: false, statsOpen: false }; // mapOpen: full-screen city map (M)
   const norm = (e) => (e.code.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.code.startsWith('Digit') ? e.code.slice(5) : e.code.toLowerCase());
   window.addEventListener('keydown', (e) => {
     const k = norm(e);
     if (['space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'tab'].includes(k)) e.preventDefault();
     if (k === 'm' && !e.repeat) input.mapOpen = !input.mapOpen;
+    if (k === 'tab' && !e.repeat) input.statsOpen = !input.statsOpen;
     if (!keys.has(k)) edge.add(k);
     keys.add(k);
   });
   window.addEventListener('keyup', (e) => keys.delete(norm(e)));
-  window.addEventListener('blur', () => { keys.clear(); input.mouse.down = false; input.mapOpen = false; });
+  window.addEventListener('blur', () => { keys.clear(); input.mouse.down = false; input.mapOpen = false; input.statsOpen = false; });
   canvas.addEventListener('mousemove', (e) => {
     const r = canvas.getBoundingClientRect();
     input.mouse.x = ((e.clientX - r.left) / r.width) * 1280;
