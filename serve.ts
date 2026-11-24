@@ -7,11 +7,13 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const DEFAULT_PORT = 8080;
+const HOST = '127.0.0.1'; // loopback only: this is a dev convenience, never exposed
 const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
-const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
-const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 8080;
+const requested = portIndex === -1 ? DEFAULT_PORT : Number(args[portIndex + 1]);
+const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : DEFAULT_PORT;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -58,7 +60,7 @@ createServer((request, response) => {
     if (!stats.isFile()) throw new Error('not a file');
     size = stats.size;
   } catch {
-    response.writeHead(404).end('not found');
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end(`404 not found: ${pathname}`);
     return;
   }
   response.writeHead(200, {
@@ -67,6 +69,6 @@ createServer((request, response) => {
     'cache-control': 'no-store',
   });
   createReadStream(file).pipe(response);
-}).listen(port, '127.0.0.1', () => {
+}).listen(port, HOST, () => {
   console.log(`game/ is on http://localhost:${port} (Ctrl+C to stop)`);
 });
