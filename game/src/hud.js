@@ -1,9 +1,10 @@
 // DOM HUD: reads live game state every frame and writes only what changed.
 // Panels: mission tracker, SBPD dispatch, wanted stars, cash/clock, district standing, rank + RP, minimap,
 // health + armour, radio, weapon slots, vehicle readout, crew cards, dialogue box, banner, notifications.
+import * as THREE from 'three';
 import { WEAPONS, DISTRICTS } from './config.js';
 import { districtAt } from './city.js';
-import { getObjective, PORTRAITS } from './missions.js';
+import { getObjective, PORTRAITS, MISSION_COUNT } from './missions.js';
 import { getDispatch } from './police.js';
 import { CAR_TYPES } from './vehicles.js';
 import { STATION, currentTrack } from './audio.js';
@@ -15,7 +16,7 @@ const $ = (id) => document.getElementById(id);
 const COL_PORTRAIT_BG = '#2d3650', COL_SUIT = '#111', COL_SHIRT_FRONT = '#fff', COL_EYES = '#111', COL_MOUTH = '#7a2a2a', COL_CAP_DEFAULT = '#f2f2f2';
 const VIGNETTE_RGB = '210,20,20';
 // The always-visible key hint for the full-screen city map, and the controls-screen line that lists the M and N keys.
-const MAP_HINT = 'M - Map', HELP_KEYS_LINE = '<kbd>M</kbd> city map &middot; <kbd>N</kbd> mute &middot; <kbd>T</kbd> next radio track';
+const MAP_HINT = 'M - Map  ·  TAB - Career', HELP_KEYS_LINE = '<kbd>M</kbd> city map &middot; <kbd>Tab</kbd> career &middot; <kbd>N</kbd> mute &middot; <kbd>T</kbd> next radio track';
 // Class names toggled on HUD elements.
 const CLS_ON = 'on', CLS_FLASH = 'flash', CLS_HAVE = 'have', CLS_SEL = 'sel', CLS_COOL = 'cool', CLS_ACT = 'act';
 
@@ -54,6 +55,29 @@ export function createHud(game) {
   $('hud').appendChild(mapHint);
   for (const row of document.querySelectorAll('#help .keys div')) if (/mute/i.test(row.textContent)) row.innerHTML = HELP_KEYS_LINE; // M now opens the map; mute moved to N
 
+  // hostile markers: a red triangle floats over every live guard in view (projected into the 1280x720 stage)
+  const markRoot = document.createElement('div');
+  markRoot.style.cssText = 'position:absolute;inset:0;overflow:hidden';
+  $('hud').appendChild(markRoot);
+  const markEls = [], tmp = new THREE.Vector3();
+  function updateMarks() {
+    let n = 0;
+    if (game.state === 'play' && !game.hideHud) {
+      for (const c of game.cops) {
+        if (c.kind !== 'goon' || c.dead || n >= 12) continue;
+        const d = Math.hypot(c.x - game.player.x, c.z - game.player.z);
+        if (d > 60) continue;
+        tmp.set(c.x, 2.35, c.z).project(game.camera);
+        if (tmp.z > 1 || Math.abs(tmp.x) > 1 || Math.abs(tmp.y) > 1) continue;
+        let e = markEls[n];
+        if (!e) { e = document.createElement('div'); e.style.cssText = 'position:absolute;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:13px solid #ff3b30;filter:drop-shadow(0 0 3px #000)'; markRoot.appendChild(e); markEls[n] = e; }
+        e.style.display = 'block'; e.style.left = Math.round((tmp.x * 0.5 + 0.5) * 1280 - 8) + 'px'; e.style.top = Math.round((-tmp.y * 0.5 + 0.5) * 720 - 13) + 'px';
+        n++;
+      }
+    }
+    for (let i = n; i < markEls.length; i++) markEls[i].style.display = 'none';
+  }
+
   function drawPortrait(name) {
     const cv = el['d-face'], g = cv.getContext('2d'), P = PORTRAITS[name] || PORTRAITS.Jax;
     g.clearRect(0, 0, 108, 108);
@@ -79,7 +103,7 @@ export function createHud(game) {
   return function updateHud() {
     const p = game.player, w = game.wanted, obj = getObjective(game);
     // mission tracker
-    text('m-chap', `CHAPTER ${obj.chapter}${obj.active ? '' : ' · NEXT JOB'}`);
+    text('m-chap', `MISSION ${obj.chapter}/${MISSION_COUNT}${obj.active ? '' : ' · NEXT JOB'}`);
     text('m-stage', obj.stages ? `STAGE ${obj.active ? obj.stage : 0}/${obj.stages}` : 'FREE ROAM');
     text('m-title', obj.title || (game.mission.storyComplete ? 'Solmar Bay Royalty' : 'Waiting for a call'));
     width('m-prog', obj.progress);
@@ -102,7 +126,7 @@ export function createHud(game) {
     text('cash', '$' + Math.round(game.money).toLocaleString('en-US'));
     text('clock', clockText());
     const dn = districtAt(p.x, p.z), st = standingOf(game, dn);
-    text('dist-name', dn); text('dist-stand', st.title.toUpperCase()); width('dist-rep', st.value / 100);
+    text('dist-name', dn); text('dist-stand', `${st.title.toUpperCase()} · ${Math.round(st.value)}`); width('dist-rep', st.value / 100);
     const ri = rankInfo(game.rp);
     text('rank-name', `RANK ${ri.rank} · ${ri.title.toUpperCase()}`);
     text('rank-rp', ri.hi > ri.lo ? `${Math.round(game.rp)} / ${ri.hi} RP` : `${Math.round(game.rp)} RP`);
@@ -159,7 +183,7 @@ export function createHud(game) {
     let prompt = '';
     if (!p.dead && !game.hideHud) {
       if (p.inCar) prompt = Math.abs(p.inCar.speed) < 2.5 ? '<kbd>E</kbd>EXIT VEHICLE' : '';
-      else if (game.nearCar) prompt = '<kbd>E</kbd>ENTER ' + CAR_TYPES[game.nearCar.type].name.toUpperCase();
+      else if (game.nearCar) prompt = `<kbd>E</kbd>${game.nearCar.driver === 'ai' ? 'HIJACK ' : 'ENTER '}${CAR_TYPES[game.nearCar.type].name.toUpperCase()}`;
     }
     put('prompt', prompt, (h) => { el.prompt.innerHTML = h; el.prompt.style.display = h ? 'block' : 'none'; });
     // crosshair follows the mouse while aiming on foot
@@ -172,6 +196,7 @@ export function createHud(game) {
     // notifications
     const nk = game.notifs.map((n) => n.text).join('|');
     put('notifs', nk, () => { el.notifs.innerHTML = game.notifs.map((n) => `<div>${n.text}</div>`).join(''); });
+    updateMarks();
     void DISTRICTS; void STATION;
   };
 
