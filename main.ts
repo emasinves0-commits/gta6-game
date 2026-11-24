@@ -6,10 +6,10 @@
 //
 // The game is "Solmar Bay: A Tide of Trouble", an original 3D third-person open-world crime game built on
 // vendored three.js (every model and texture made in code) with synthesized WebAudio sound: a seeded coastal city with traffic,
-// pedestrians, stealable cars with drift physics, a 5-star police response, a four-mission story
-// about ex-con Jax Merrin, a minimap HUD, a helicopter-and-roadblock police response, saves and a ?shot= staging mode for screenshots.
+// pedestrians, stealable cars with drift physics, a 5-star police response, an eight-mission story
+// about ex-con Jax Merrin, a minimap HUD and a full-screen city map (M), a helicopter-and-roadblock police response, saves and a ?shot= staging mode for screenshots.
 //
-// v3 is the 3D rebuild: game/src/main.js wires the modules, game/vendor/ holds three.js.
+// v4 adds four more story missions, the city map and re-staged screenshots on top of the v3 3D rebuild: game/src/main.js wires the modules, game/vendor/ holds three.js.
 // The HUD shows a police dispatch panel, weapon slots, district label and radio line, all driven by game state.
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
@@ -24,12 +24,13 @@ import { buildDossier } from './vendor/makefun-game.ts';
 const GAME_DIR = 'game'; // the playable static game
 const SHOTS_DIR = 'screenshots'; // up to 4 real renders of ?shot= scenes
 const DOSSIER_FILE = 'dossier.json'; // the summary the judge reads
+const TEXT_MAX_BYTES = 163840; // the scorer's cap on the dossier's text fields (160 KiB)
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 if (!existsSync(join(here, GAME_DIR, 'index.html'))) {
-  console.error(`main.ts: ${join(here, GAME_DIR, 'index.html')} is missing - run this from the entry's own directory checkout.`);
+  console.error(`main.ts: cannot find ${join(here, GAME_DIR, 'index.html')} - main.ts must sit next to the ${GAME_DIR}/ folder of the entry checkout (run: MAKEFUN_OUTPUT_DIR=out node main.ts).`);
   process.exit(1);
 }
 
@@ -45,7 +46,7 @@ if (existsSync(join(here, SHOTS_DIR))) cpSync(join(here, SHOTS_DIR), join(out, S
 writeFileSync(
   join(out, DOSSIER_FILE),
   buildDossier(out, {
-    text_max_bytes: 163840,
+    text_max_bytes: TEXT_MAX_BYTES,
     screenshots: { max: 4, max_bytes: 262144 },
     game_max_files: 993,
     game_max_bytes: 50331648,
