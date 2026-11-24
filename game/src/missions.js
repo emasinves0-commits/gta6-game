@@ -1,4 +1,5 @@
-// The four-mission story of Jax Merrin: First Job, The Pickup, The Getaway, The Big Score.
+// The eight-mission story of Jax Merrin: First Job, The Pickup, The Getaway, The Big Score, The Collection, The Rival,
+// The Handoff, The Last Ferry.
 // Stages, waypoint targets, banners, dialogue (named characters), failure rules and rewards.
 import * as THREE from 'three';
 import { nodePos, pushOut } from './city.js';
@@ -71,6 +72,59 @@ const MISSIONS = [
         onEnter(game) { setWanted(game, 4); say(game, 'Lola', 'Alarms! Four stars - get to Pier 5, my boat is waiting!'); } },
       { kind: 'clear', text: 'Lose the police', onEnter() {} },
       { target: at(5, 7, 0, ROADS_H - at(5, 7).z + 38), text: 'Reach Pier 5', onEnter(game) { say(game, 'Lola', 'Jax Merrin, king of Solmar Bay. Drinks are on you.'); } },
+    ],
+  },
+  {
+    id: 'the-collection', chapter: 5, title: 'The Collection', reward: 2200, rp: 350, start: at(5, 2), giver: 'Mina',
+    briefing: ['Mina: Ostrander left debts all over the bay. Two shops still owe him.', 'Mina: Collect from both. The second one calls the cops.'],
+    stages: [
+      { target: at(2, 2, 0, 0), needCar: true, text: (g) => (g.player.inCar ? 'Collect the first payment at the Park Cafe' : 'Get a car (E) and collect the payment'),
+        onEnter(game) { say(game, 'Mina', 'One down. The next owner already panicked - expect sirens.'); } },
+      { target: at(6, 0, 0, 0), needCar: true, text: 'Collect the second payment at the Heights Pawn',
+        onEnter(game) { setWanted(game, 2); say(game, 'Mina', 'He called SBPD! Two stars - get out of there!'); } },
+      { kind: 'clear', text: 'Lose the police', onEnter() {} },
+      { target: at(3, 6, 0, 0), requireClear: true, text: 'Bring the cash to Mina at the garage',
+        onEnter(game) { say(game, 'Mina', 'Every dollar counted. Ostrander never knew you were this good.'); } },
+    ],
+  },
+  {
+    id: 'the-rival', chapter: 6, title: 'The Rival', reward: 3000, rp: 450, start: at(2, 5), giver: 'Lola',
+    briefing: ["Lola: Vince Calder wants Ostrander's old turf. His crew holds the Heights warehouse.", 'Lola: Go there and clear his guards out.'],
+    stages: [
+      { target: at(7, 2, 0, 0), text: 'Drive to the Harbor Heights warehouse',
+        onEnter(game, m) { spawnGuards(game, at(7, 2)); m.data.total = 6; say(game, 'Lola', "That's Calder's crew. Weapons out, Jax!"); } },
+      { kind: 'kill', text: (g) => `Eliminate Calder's guards (${g.cops.filter((c) => c.kind === 'goon' && !c.dead).length} left)`,
+        onEnter(game) { setWanted(game, 2); say(game, 'Lola', 'The shooting woke the whole block - SBPD incoming!'); } },
+      { kind: 'clear', text: 'Lose the police', onEnter(game) { say(game, 'Lola', 'Calder is finished. The Heights are yours.'); } },
+    ],
+  },
+  {
+    id: 'the-handoff', chapter: 7, title: 'The Handoff', reward: 3800, rp: 520, start: at(4, 1), giver: 'Kenji',
+    briefing: ['Kenji: A courier van, a sealed crate, two stops. Do not open it.', 'Kenji: Last drop is the pier, and it has to be clean.'],
+    onStart(game, m) {
+      const s = at(4, 1);
+      m.data.car = createCar(game, 'van', s.x + 10, s.z + 5.2, 0, { missionCar: true, color: 0x3f9d57 });
+    },
+    stages: [
+      { target: at(1, 5), needCar: true, text: (g) => (g.player.inCar ? 'Take the van to the Marina Row drop' : 'Get in the courier van'),
+        failIf: (g, m) => (m.data.car && m.data.car.dead ? 'The van was destroyed' : null),
+        onEnter(game) { say(game, 'Kenji', 'First crate is off. Second stop is in Central Plaza.'); } },
+      { target: at(6, 3), needCar: true, requireClear: true, text: 'Drive to the Harbor Heights handoff (keep it clean)',
+        failIf: (g, m) => (m.data.car && m.data.car.dead ? 'The van was destroyed' : null),
+        onEnter(game) { say(game, 'Kenji', 'Buyer is happy. Last stop - the pier. No heat.'); } },
+      { target: at(5, 7, 0, ROADS_H - at(5, 7).z + 38), needCar: true, requireClear: true, text: 'Deliver the last crate to Pier 5',
+        onEnter(game) { say(game, 'Kenji', 'Spotless. You just got yourself a reputation.'); } },
+    ],
+  },
+  {
+    id: 'the-last-ferry', chapter: 8, title: 'The Last Ferry', reward: 8000, rp: 800, start: at(7, 4), giver: 'Lola',
+    briefing: ['Lola: The last ferry leaves Pier 5 at dusk. Calder sold you to the SBPD.', "Lola: Four stars on you already. Lose them or run - but be on that boat."],
+    onStart(game) { setWanted(game, 4); createCar(game, 'sports', at(7, 4).x - 10, at(7, 4).z + 5.2, 0, { missionCar: true, color: 0x2fa3b8 }); },
+    stages: [
+      { kind: 'clear', text: 'Lose the SBPD manhunt', onEnter(game) { say(game, 'Lola', 'Clean break. Now get to the pier before the ferry leaves!'); } },
+      { target: at(4, 4), needCar: true, text: 'Cut through Central Plaza', onEnter(game) { setWanted(game, 2); say(game, 'Lola', 'They spotted you again - two stars! Keep moving!'); } },
+      { kind: 'clear', text: 'Lose the police again', onEnter() {} },
+      { target: at(5, 7, 0, ROADS_H - at(5, 7).z + 38), text: 'Reach the ferry at Pier 5', onEnter(game) { say(game, 'Lola', 'Jax Merrin, off the bay at last. Solmar will remember you.'); } },
     ],
   },
 ];
@@ -217,7 +271,7 @@ export function getObjective(game) {
     markers.push({ x: def.start.x, z: def.start.z, color: '#5ee08a', label: def.title, start: true });
     return { text: `Go to the green marker: ${def.title}`, title: null, chapter: def.chapter, target: def.start, markers, active: false, stage: 0, stages: def.stages.length, progress: 0 };
   }
-  return { text: 'Story complete - enjoy free roam in Solmar Bay', title: null, chapter: 4, target: null, markers, active: false, stage: 0, stages: 0, progress: 1 };
+  return { text: 'Story complete - enjoy free roam in Solmar Bay', title: null, chapter: MISSIONS.length, target: null, markers, active: false, stage: 0, stages: 0, progress: 1 };
 }
 
 // Restore story progress from a save.
