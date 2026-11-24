@@ -4,11 +4,12 @@
 // screenshots/ from beside this file to /output and writes /output/dossier.json, the summary the
 // judge reads, with the vendored make.fun library.
 //
-// The game is "Solmar Bay: A Tide of Trouble", an original 2D top-down open-world crime game drawn
-// entirely on a canvas with synthesized WebAudio sound: a seeded coastal city with traffic,
+// The game is "Solmar Bay: A Tide of Trouble", an original 3D third-person open-world crime game built on
+// vendored three.js (every model and texture made in code) with synthesized WebAudio sound: a seeded coastal city with traffic,
 // pedestrians, stealable cars with drift physics, a 5-star police response, a four-mission story
-// about ex-con Jax Merrin, a minimap HUD, saves and a ?shot= staging mode for screenshots.
+// about ex-con Jax Merrin, a minimap HUD, a helicopter-and-roadblock police response, saves and a ?shot= staging mode for screenshots.
 //
+// v3 is the 3D rebuild: game/src/main.js wires the modules, game/vendor/ holds three.js.
 // The HUD shows a police dispatch panel, weapon slots, district label and radio line, all driven by game state.
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
