@@ -14,6 +14,8 @@ const $ = (id) => document.getElementById(id);
 // Portrait palette (canvas fill colours) and the vignette's damage colour, named once.
 const COL_PORTRAIT_BG = '#2d3650', COL_SUIT = '#111', COL_SHIRT_FRONT = '#fff', COL_EYES = '#111', COL_MOUTH = '#7a2a2a', COL_CAP_DEFAULT = '#f2f2f2';
 const VIGNETTE_RGB = '210,20,20';
+// The always-visible key hint for the full-screen city map, and the controls-screen line that lists the M and N keys.
+const MAP_HINT = 'M - Map', HELP_KEYS_LINE = '<kbd>M</kbd> city map &middot; <kbd>N</kbd> mute &middot; <kbd>T</kbd> next radio track';
 // Class names toggled on HUD elements.
 const CLS_ON = 'on', CLS_FLASH = 'flash', CLS_HAVE = 'have', CLS_SEL = 'sel', CLS_COOL = 'cool', CLS_ACT = 'act';
 
@@ -46,6 +48,11 @@ export function createHud(game) {
     return { d, cd: d.querySelector('.cd') };
   });
   const bars = { hp: el.hp.firstElementChild, ar: el.ar.firstElementChild };
+  const mapHint = document.createElement('div');
+  mapHint.textContent = MAP_HINT;
+  mapHint.style.cssText = 'position:absolute;left:50%;top:10px;transform:translateX(-50%);padding:2px 12px;border-radius:12px;font-size:12px;font-weight:800;letter-spacing:.12em;color:#dfe7f5;background:rgba(14,18,28,.62);border:1px solid rgba(255,255,255,.18);';
+  $('hud').appendChild(mapHint);
+  for (const row of document.querySelectorAll('#help .keys div')) if (/mute/i.test(row.textContent)) row.innerHTML = HELP_KEYS_LINE; // M now opens the map; mute moved to N
 
   function drawPortrait(name) {
     const cv = el['d-face'], g = cv.getContext('2d'), P = PORTRAITS[name] || PORTRAITS.Jax;
@@ -159,8 +166,9 @@ export function createHud(game) {
     const aiming = !p.inCar && p.weapon > 0 && (game.input.mouse.right || p.aimT > 0);
     put('xh', aiming, (on) => { el.crosshair.style.display = on ? 'block' : 'none'; });
     if (aiming) { el.crosshair.style.left = game.input.mouse.x + 'px'; el.crosshair.style.top = game.input.mouse.y + 'px'; }
-    // damage vignette
-    put('vig', Math.round(Math.max(game.hurtFlash || 0, p.hp < 30 ? 0.3 : 0) * 10), (v) => { el.vig.style.boxShadow = `inset 0 0 160px 40px rgba(${VIGNETTE_RGB},${v / 10})`; });
+    // damage vignette: a steady red edge below LOW_HP_HEALTH, brighter while a hit is still flashing (strength in tenths)
+    const LOW_HP_HEALTH = 30, LOW_HP_GLOW = 0.3;
+    put('vig', Math.round(Math.max(game.hurtFlash || 0, p.hp < LOW_HP_HEALTH ? LOW_HP_GLOW : 0) * 10), (v) => { el.vig.style.boxShadow = `inset 0 0 160px 40px rgba(${VIGNETTE_RGB},${v / 10})`; });
     // notifications
     const nk = game.notifs.map((n) => n.text).join('|');
     put('notifs', nk, () => { el.notifs.innerHTML = game.notifs.map((n) => `<div>${n.text}</div>`).join(''); });
