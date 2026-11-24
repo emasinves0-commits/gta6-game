@@ -7,7 +7,7 @@
 An entry for the make.fun [Make GTA 6](https://make.fun/bounty/gta6-01) bounty.
 
 A fully original 3D third-person open-world crime game set in the sun-soaked, golden-hour coastal city of
-**Solmar Bay**. You play Jax Merrin, fresh out of prison and broke, working through a four-mission story
+**Solmar Bay**. You play Jax Merrin, fresh out of prison and broke, working through a eight-mission story
 (First Job, The Pickup, The Getaway, The Big Score) while the SBPD takes an interest.
 
 Built on three.js (vendored in `game/vendor/`, no network at all). Every model, texture and sound is made in
@@ -38,7 +38,7 @@ node serve.ts
 
 Then open http://localhost:8080 in desktop Chrome. Any static server pointed at `game/` works too.
 
-Staged screenshot scenes: `?shot=chase`, `?shot=mission`, `?shot=drive`, `?shot=foot` (add `&seed=N` for another city). They are listed in `shots.json`, chase first.
+Staged screenshot scenes: `?shot=chase`, `?shot=stats` (the Tab career screen), `?shot=drive` (storm), `?shot=foot` (night, carjack prompt) (add `&seed=N` for another city). They are listed in `shots.json`, chase first.
 
 ## Source layout (game/src)
 
@@ -49,6 +49,7 @@ Staged screenshot scenes: `?shot=chase`, `?shot=mission`, `?shot=drive`, `?shot=
 | city.js, cityscape.js, geometry.js | grid layout + collision, 3D scenery, mesh merging |
 | vehicles.js, traffic.js, pedestrians.js, characters.js | cars, ambient traffic, people, low-poly figures |
 | police.js, combat.js, player.js | SBPD, weapons and pickups, Jax |
+| weather.js, statsscreen.js | per-shot night / storm looks, Tab career screen |
 | missions.js, activities.js, stats.js | story, crew / crabs / race, rank and standing |
 | hud.js, minimap.js | DOM HUD, canvas minimap |
 | audio.js, effects.js, input.js, save.js | WebAudio, particles, keyboard + mouse, saves |
