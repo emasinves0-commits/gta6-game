@@ -28,6 +28,13 @@ const SHOT = params.get('shot');
 const SEED = Number(params.get('seed')) || 1;
 const SUN = new THREE.Vector3(-0.62, 0.34, 0.5).normalize(); // low western sun, golden hour
 const FOG = 0xf0b98f;
+// Third-person chase camera tuning (metres / seconds). `CAM_CAR_*` apply in a vehicle, `CAM_FOOT_*` on foot.
+const CAM_CAR_DIST = 8.6, CAM_CAR_DIST_SPEED_GAIN = 0.11, CAM_CAR_DIST_SPEED_MAX = 3.4; // follow distance grows with speed
+const CAM_FOOT_DIST = 4.7;
+const CAM_CAR_HEIGHT = 3.5, CAM_FOOT_HEIGHT = 2.1;
+const CAM_CAR_FOCUS_Y = 1.3, CAM_FOOT_FOCUS_Y = 1.55; // height of the point the camera orbits
+const CAM_FOOT_SHOULDER = -0.55; // over-the-shoulder offset on foot
+const CAM_FOLLOW_RATE = 14; // position smoothing, per second
 
 // ------------------------------------------------------------------ renderer, sky, light
 function createRenderer(canvas) {
@@ -143,7 +150,9 @@ function stepGame(game, dt) {
   for (const n of game.notifs) n.t -= dt;
   game.notifs = game.notifs.filter((n) => n.t > 0);
 
-  game.nearCar = !game.player.inCar && !game.player.dead ? nearestCar(game, game.player.x, game.player.z, 3.8) : null;
+  const pl = game.player;
+  if (!pl || !Number.isFinite(dt) || dt <= 0) return; // defensive: skip a bad frame instead of corrupting state with NaN
+  game.nearCar = !pl.inCar && !pl.dead ? nearestCar(game, pl.x, pl.z, 3.8) : null;
   updateCrew(game, input, dt);
   updatePlayer(game, input, dt);
   if (game.autopilot) game.autopilot(game, dt);
@@ -206,12 +215,12 @@ function updateCamera(game, dt, closer = 1) {
   }
   if (input.mouse.wheel) { cam.zoom = Math.max(0.65, Math.min(1.8, cam.zoom + input.mouse.wheel * 0.08)); input.mouse.wheel = 0; }
   const speed = car ? Math.hypot(car.vx, car.vz) : 0;
-  const dist = (car ? 8.6 + Math.min(speed * 0.11, 3.4) : 4.7) * cam.zoom * closer;
-  const height = (car ? 3.5 : 2.1) * (0.7 + 0.3 * cam.zoom) * (closer < 1 ? 0.9 : 1);
-  const fy = car ? 1.3 : 1.55;
+  const dist = (car ? CAM_CAR_DIST + Math.min(speed * CAM_CAR_DIST_SPEED_GAIN, CAM_CAR_DIST_SPEED_MAX) : CAM_FOOT_DIST) * cam.zoom * closer;
+  const height = (car ? CAM_CAR_HEIGHT : CAM_FOOT_HEIGHT) * (0.7 + 0.3 * cam.zoom) * (closer < 1 ? 0.9 : 1);
+  const fy = car ? CAM_CAR_FOCUS_Y : CAM_FOOT_FOCUS_Y;
   const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw);
   const rx = -fwdZ, rz = fwdX; // screen-right on the ground plane
-  const side = car ? 0 : -0.55; // over-the-shoulder offset on foot
+  const side = car ? 0 : CAM_FOOT_SHOULDER;
   const fx = tgt.x + rx * side, fz = tgt.z + rz * side;
   let d = dist;
   for (let t = 1; t >= 0.15; t -= 0.07) { // pull the camera in front of any wall it would sit inside
@@ -221,7 +230,7 @@ function updateCamera(game, dt, closer = 1) {
   }
   const shake = game.shake * 0.35;
   const tx = fx - fwdX * d, tz = fz - fwdZ * d, ty = fy + height * (d / dist);
-  const k = Math.min(1, dt * 14);
+  const k = Math.min(1, dt * CAM_FOLLOW_RATE);
   cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; cam.z += (tz - cam.z) * k;
   camera.position.set(cam.x + (Math.random() - 0.5) * shake, cam.y + (Math.random() - 0.5) * shake, cam.z + (Math.random() - 0.5) * shake);
   const look = car ? 6 + speed * 0.12 : 6;
