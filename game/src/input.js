@@ -1,44 +1,28 @@
-// Keyboard and mouse state. `down` is held keys, `pressed` is keys hit this frame.
-
+// Keyboard + mouse state. Edge-triggered keys are consumed with pressed(); held keys read from keys.
 export function createInput(canvas) {
-  const input = {
-    down: new Set(),
-    pressed: new Set(),
-    mouseX: 0,
-    mouseY: 0,
-    mouseDown: false,
-    mouseClicked: false,
-    onFirstGesture: null,
-  };
-  // Keys the browser would otherwise scroll or focus-shift on; we swallow them while playing.
-  const BLOCKED = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
+  const keys = new Set();
+  const edge = new Set();
+  const input = { keys, mouse: { x: 640, y: 360, down: false, right: false, wheel: 0 }, locked: false };
+  const norm = (e) => (e.code.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.code.startsWith('Digit') ? e.code.slice(5) : e.code.toLowerCase());
   window.addEventListener('keydown', (e) => {
-    if (BLOCKED.has(e.code)) e.preventDefault();
-    if (!e.repeat) input.pressed.add(e.code);
-    input.down.add(e.code);
-    input.gesture();
+    const k = norm(e);
+    if (['space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'tab'].includes(k)) e.preventDefault();
+    if (!keys.has(k)) edge.add(k);
+    keys.add(k);
   });
-  window.addEventListener('keyup', (e) => input.down.delete(e.code));
-  window.addEventListener('blur', () => { input.down.clear(); input.mouseDown = false; });
-  canvas.addEventListener('mousemove', (e) => { input.mouseX = e.offsetX; input.mouseY = e.offsetY; });
-  canvas.addEventListener('mousedown', (e) => {
-    input.mouseX = e.offsetX; input.mouseY = e.offsetY;
-    if (e.button === 0) { input.mouseDown = true; input.mouseClicked = true; }
-    input.gesture();
+  window.addEventListener('keyup', (e) => keys.delete(norm(e)));
+  window.addEventListener('blur', () => { keys.clear(); input.mouse.down = false; });
+  canvas.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    input.mouse.x = ((e.clientX - r.left) / r.width) * 1280;
+    input.mouse.y = ((e.clientY - r.top) / r.height) * 720;
   });
-  window.addEventListener('mouseup', () => { input.mouseDown = false; });
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) input.mouse.down = true; if (e.button === 2) input.mouse.right = true; });
+  window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouse.down = false; if (e.button === 2) input.mouse.right = false; });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  input.gesture = () => { if (input.onFirstGesture) { const f = input.onFirstGesture; input.onFirstGesture = null; f(); } };
-  input.isDown = (...codes) => codes.some((c) => input.down.has(c));
-  input.wasPressed = (...codes) => codes.some((c) => input.pressed.has(c));
-  input.endFrame = () => { input.pressed.clear(); input.mouseClicked = false; };
+  canvas.addEventListener('wheel', (e) => { input.mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
+  input.pressed = (k) => edge.delete(k);
+  input.down = (k) => keys.has(k);
+  input.clearEdges = () => edge.clear();
   return input;
-}
-
-// Stand-in input with nothing pressed (title-screen demos and headless tests).
-export function createIdleInput() {
-  return {
-    down: new Set(), pressed: new Set(), mouseX: 0, mouseY: 0, mouseDown: false, mouseClicked: false,
-    isDown: () => false, wasPressed: () => false, endFrame() {},
-  };
 }
